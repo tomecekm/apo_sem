@@ -174,8 +174,9 @@ int main(int argc, char *argv[]) {
         uint8_t green_knob = (knobs >> 8) & 0xFF;   // Green knob (Y position)
         uint8_t blue_knob = knobs & 0xFF;           // Blue knob (X position)
 
-        // Check for button presses (exit condition)
-        if ((knobs & 0x7000000) != 0) {
+        // Check specifically for blue button press (bit 24)
+        if (knobs & 0x1000000) {
+            printf("Blue button pressed - exiting\n");
             break;
         }
 
