@@ -18,7 +18,7 @@
 
 #define LCD_WIDTH 480
 #define LCD_HEIGHT 320
-#define MAGNIFICATION 2
+#define MAGNIFICATION 15
 
 // Global frame buffer
 unsigned short *fb;
@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
         // Calculate positions and magnification
         int center_x = (blue_val * LCD_WIDTH) / 256;
         int center_y = (green_val * LCD_HEIGHT) / 256;
-        int mag_factor = 1 + (red_val * 7) / 256;  // Maps 0-255 to 1-8
+        int mag_factor = 1 + (red_val * MAGNIFICATION) / 256;  // Maps 0-255 to 1-8
 
         // Debug print calculated values
         printf("Calculated positions - X: %d, Y: %d, Mag: %d\n", center_x, center_y, mag_factor);
