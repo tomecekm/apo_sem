@@ -166,18 +166,23 @@ int main(int argc, char *argv[]) {
 
     // Main loop
     while (1) {
-        // Read knob values
-        uint32_t r = *(volatile uint32_t*)(mem_base + SPILED_REG_KNOBS_8BIT_o);
+        // Read knob values - using KNOBS_8BIT register for rotation values
+        uint32_t knobs = *(volatile uint32_t*)(mem_base + SPILED_REG_KNOBS_8BIT_o);
         
-        // Check exit condition (any button pressed)
-        if ((r & 0x7000000) != 0) {
+        // Extract individual knob values
+        uint8_t red_knob = (knobs >> 16) & 0xFF;    // Red knob (magnification)
+        uint8_t green_knob = (knobs >> 8) & 0xFF;   // Green knob (Y position)
+        uint8_t blue_knob = knobs & 0xFF;           // Blue knob (X position)
+
+        // Check for button presses (exit condition)
+        if ((knobs & 0x7000000) != 0) {
             break;
         }
 
-        // Update position based on knobs
-        center_x = ((r & 0xff) * LCD_WIDTH) / 256;        // Blue knob (0-255) maps to 0-480
-        center_y = (((r >> 8) & 0xff) * LCD_HEIGHT) / 256; // Green knob (0-255) maps to 0-320
-        mag_factor = 1 + ((r >> 16) & 0xff) / 64;         // Red knob (0-255) maps to 1-4
+        // Update position and magnification based on knob rotations
+        center_x = (blue_knob * LCD_WIDTH) / 256;
+        center_y = (green_knob * LCD_HEIGHT) / 256;
+        mag_factor = 1 + (red_knob * 3) / 255;  // Maps 0-255 to 1-4
 
         // Clear frame buffer
         clear_frame_buffer(0x0000);
