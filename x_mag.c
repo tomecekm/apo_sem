@@ -49,72 +49,61 @@ void clear_frame_buffer(uint16_t color) {
 
 // Function to load the image into source buffer
 void load_image_to_buffer() {
-    printf("Image dimensions: %dx%d\n", kote_png_width, kote_png_height);
-    
     source_buffer = (unsigned short *)malloc(LCD_WIDTH * LCD_HEIGHT * sizeof(unsigned short));
     if (source_buffer == NULL) {
         printf("ERROR: Failed to allocate source buffer\n");
         return;
     }
 
-    // Clear source buffer first
+    // Clear source buffer first with black color
     for (int ptr = 0; ptr < LCD_WIDTH * LCD_HEIGHT; ptr++) {
-        source_buffer[ptr] = 0;
+        source_buffer[ptr] = 0x0000;
     }
 
-    // Copy image data to center of source buffer
+    // Calculate center position to place image
     int start_x = (LCD_WIDTH - kote_png_width) / 2;
     int start_y = (LCD_HEIGHT - kote_png_height) / 2;
-    
-    printf("Starting position: (%d, %d)\n", start_x, start_y);
 
-    // Add a test pattern
-    uint16_t test_colors[] = {0xF800, 0x07E0, 0x001F}; // Red, Green, Blue
-    
+    // Copy image data to center of source buffer
     for (int y = 0; y < kote_png_height; y++) {
         for (int x = 0; x < kote_png_width; x++) {
             int dest_x = start_x + x;
             int dest_y = start_y + y;
             if (dest_x >= 0 && dest_x < LCD_WIDTH && dest_y >= 0 && dest_y < LCD_HEIGHT) {
-                // Use test pattern if image data seems wrong
-                uint16_t color = kote_png[x + y * kote_png_width];
-                if (color == 0) { // If image data is black, use test pattern
-                    color = test_colors[(x + y) % 3];
-                }
-                source_buffer[dest_x + LCD_WIDTH * dest_y] = color;
+                source_buffer[dest_x + LCD_WIDTH * dest_y] = kote_png[x + y * kote_png_width];
             }
         }
     }
-    printf("Image loaded into buffer\n");
 }
 
 // Function to draw magnified area
-void draw_magnified_area(int center_x, int center_y) {
-    int mag_width = LCD_WIDTH / MAGNIFICATION;
-    int mag_height = LCD_HEIGHT / MAGNIFICATION;
+void draw_magnified_area(int center_x, int center_y, int mag_factor) {
+    // Calculate the size of the area to magnify
+    int mag_width = LCD_WIDTH / mag_factor;
+    int mag_height = LCD_HEIGHT / mag_factor;
+    
+    // Calculate the starting point for sampling the source image
     int start_x = center_x - (mag_width / 2);
     int start_y = center_y - (mag_height / 2);
 
-    printf("Drawing magnified area at (%d, %d), size: %dx%d\n", 
-           start_x, start_y, mag_width, mag_height);
+    // Ensure start positions are within bounds
+    start_x = (start_x < 0) ? 0 : (start_x >= LCD_WIDTH - mag_width) ? LCD_WIDTH - mag_width : start_x;
+    start_y = (start_y < 0) ? 0 : (start_y >= LCD_HEIGHT - mag_height) ? LCD_HEIGHT - mag_height : start_y;
 
     // Draw magnified pixels
     for (int y = 0; y < mag_height; y++) {
         for (int x = 0; x < mag_width; x++) {
             int src_x = start_x + x;
             int src_y = start_y + y;
-
-            // Get color from source buffer (with bounds checking)
-            uint16_t color = 0;
-            if (src_x >= 0 && src_x < LCD_WIDTH && src_y >= 0 && src_y < LCD_HEIGHT) {
-                color = source_buffer[src_x + LCD_WIDTH * src_y];
-            }
+            
+            // Get color from source buffer
+            uint16_t color = source_buffer[src_x + LCD_WIDTH * src_y];
 
             // Draw magnified pixel
-            for (int dy = 0; dy < MAGNIFICATION; dy++) {
-                for (int dx = 0; dx < MAGNIFICATION; dx++) {
-                    int dest_x = x * MAGNIFICATION + dx;
-                    int dest_y = y * MAGNIFICATION + dy;
+            for (int dy = 0; dy < mag_factor; dy++) {
+                for (int dx = 0; dx < mag_factor; dx++) {
+                    int dest_x = x * mag_factor + dx;
+                    int dest_y = y * mag_factor + dy;
                     draw_pixel(dest_x, dest_y, color);
                 }
             }
@@ -195,35 +184,40 @@ int main(int argc, char *argv[]) {
         .tv_nsec = 150 * 1000 * 1000  // 150ms
     };
 
-    // Initial position
-    int center_x = LCD_WIDTH / 2;
-    int center_y = LCD_HEIGHT / 2;
-
     // Main loop
     while (1) {
         // Read knob values
-        int r = *(volatile uint32_t*)(led_mem_base + SPILED_REG_KNOBS_8BIT_o);
+        uint32_t knobs = *(volatile uint32_t*)(led_mem_base + SPILED_REG_KNOBS_8BIT_o);
+        
+        // Extract individual knob values (0-255)
+        int red_knob = (knobs >> 16) & 0xFF;     // Red knob controls magnification
+        int green_knob = (knobs >> 8) & 0xFF;    // Green knob controls X position
+        int blue_knob = knobs & 0xFF;            // Blue knob controls Y position
 
-        // Check for exit condition (blue button)
-        if ((r & 0x7000000) != 0) {
-            break;
-        }
-
-        // Update position based on knobs
-        center_x = ((r & 0xff) * LCD_WIDTH) / 256;
-        center_y = (((r >> 8) & 0xff) * LCD_HEIGHT) / 256;
+        // Calculate magnification factor (1.5x to 4x)
+        int mag_factor = 1 + (red_knob * 3 / 255);
+        if (mag_factor < 1) mag_factor = 1;
+        
+        // Calculate center position
+        int center_x = (green_knob * LCD_WIDTH) / 255;
+        int center_y = (blue_knob * LCD_HEIGHT) / 255;
 
         // Clear frame buffer
         clear_frame_buffer(0x0000);
 
         // Draw magnified area
-        draw_magnified_area(center_x, center_y);
+        draw_magnified_area(center_x, center_y, mag_factor);
 
         // Update display
         update_display(parlcd_mem_base);
 
-        // Wait for next frame
-        clock_nanosleep(CLOCK_MONOTONIC, 0, &loop_delay, NULL);
+        // Check for exit condition (all buttons pressed)
+        if ((knobs & 0x7000000) == 0x7000000) {
+            break;
+        }
+
+        // Small delay to prevent too frequent updates
+        usleep(10000);  // 10ms delay
     }
 
     // Clear screen before exit
