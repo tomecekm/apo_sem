@@ -134,17 +134,15 @@ int main(int argc, char *argv[]) {
     // Load image into source buffer
     load_image_to_buffer();
 
-    // Map the LED peripheral
-    unsigned char *led_mem_base = map_phys_address(SPILED_REG_BASE_PHYS, SPILED_REG_SIZE, 0);
-    if (led_mem_base == NULL) {
+    // Map the peripherals
+    unsigned char *mem_base = map_phys_address(SPILED_REG_BASE_PHYS, SPILED_REG_SIZE, 0);
+    if (mem_base == NULL) {
         printf("ERROR: Failed to map LED peripheral\n");
         free(fb);
         free(source_buffer);
         return 1;
     }
-    printf("LED peripheral mapped\n");
 
-    // Map the LCD peripheral
     unsigned char *parlcd_mem_base = map_phys_address(PARLCD_REG_BASE_PHYS, PARLCD_REG_SIZE, 0);
     if (parlcd_mem_base == NULL) {
         printf("ERROR: Failed to map LCD peripheral\n");
@@ -152,31 +150,9 @@ int main(int argc, char *argv[]) {
         free(source_buffer);
         return 1;
     }
-    printf("LCD peripheral mapped\n");
 
     // Initialize the LCD
     parlcd_hx8357_init(parlcd_mem_base);
-    printf("LCD initialized\n");
-
-    // Draw a test pattern first
-    for (int y = 0; y < LCD_HEIGHT; y++) {
-        for (int x = 0; x < LCD_WIDTH; x++) {
-            if ((x + y) % 32 < 16) {
-                draw_pixel(x, y, 0xF800); // Red
-            } else {
-                draw_pixel(x, y, 0x07E0); // Green
-            }
-        }
-    }
-    update_display(parlcd_mem_base);
-    printf("Test pattern displayed\n");
-    
-    // Wait a moment to see the test pattern
-    sleep(2);
-
-    // Continue with normal operation
-    clear_frame_buffer(0x0000);
-    update_display(parlcd_mem_base);
 
     // Setup timing
     struct timespec loop_delay = {
@@ -184,23 +160,24 @@ int main(int argc, char *argv[]) {
         .tv_nsec = 150 * 1000 * 1000  // 150ms
     };
 
+    int center_x = LCD_WIDTH / 2;
+    int center_y = LCD_HEIGHT / 2;
+    int mag_factor = 2;
+
     // Main loop
     while (1) {
         // Read knob values
-        uint32_t knobs = *(volatile uint32_t*)(led_mem_base + SPILED_REG_KNOBS_8BIT_o);
+        uint32_t r = *(volatile uint32_t*)(mem_base + SPILED_REG_KNOBS_8BIT_o);
         
-        // Extract individual knob values (0-255)
-        int red_knob = (knobs >> 16) & 0xFF;     // Red knob controls magnification
-        int green_knob = (knobs >> 8) & 0xFF;    // Green knob controls X position
-        int blue_knob = knobs & 0xFF;            // Blue knob controls Y position
+        // Check exit condition (any button pressed)
+        if ((r & 0x7000000) != 0) {
+            break;
+        }
 
-        // Calculate magnification factor (1.5x to 4x)
-        int mag_factor = 1 + (red_knob * 3 / 255);
-        if (mag_factor < 1) mag_factor = 1;
-        
-        // Calculate center position
-        int center_x = (green_knob * LCD_WIDTH) / 255;
-        int center_y = (blue_knob * LCD_HEIGHT) / 255;
+        // Update position based on knobs
+        center_x = ((r & 0xff) * LCD_WIDTH) / 256;        // Blue knob (0-255) maps to 0-480
+        center_y = (((r >> 8) & 0xff) * LCD_HEIGHT) / 256; // Green knob (0-255) maps to 0-320
+        mag_factor = 1 + ((r >> 16) & 0xff) / 64;         // Red knob (0-255) maps to 1-4
 
         // Clear frame buffer
         clear_frame_buffer(0x0000);
@@ -209,20 +186,21 @@ int main(int argc, char *argv[]) {
         draw_magnified_area(center_x, center_y, mag_factor);
 
         // Update display
-        update_display(parlcd_mem_base);
-
-        // Check for exit condition (all buttons pressed)
-        if ((knobs & 0x7000000) == 0x7000000) {
-            break;
+        parlcd_write_cmd(parlcd_mem_base, 0x2c);
+        for (int ptr = 0; ptr < LCD_WIDTH * LCD_HEIGHT; ptr++) {
+            parlcd_write_data(parlcd_mem_base, fb[ptr]);
         }
 
-        // Small delay to prevent too frequent updates
-        usleep(10000);  // 10ms delay
+        // Wait before next update
+        clock_nanosleep(CLOCK_MONOTONIC, 0, &loop_delay, NULL);
     }
 
     // Clear screen before exit
     clear_frame_buffer(0x0000);
-    update_display(parlcd_mem_base);
+    parlcd_write_cmd(parlcd_mem_base, 0x2c);
+    for (int ptr = 0; ptr < LCD_WIDTH * LCD_HEIGHT; ptr++) {
+        parlcd_write_data(parlcd_mem_base, 0);
+    }
 
     // Cleanup
     free(fb);
