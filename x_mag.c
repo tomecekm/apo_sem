@@ -160,30 +160,26 @@ int main(int argc, char *argv[]) {
         .tv_nsec = 150 * 1000 * 1000  // 150ms
     };
 
-    int center_x = LCD_WIDTH / 2;
-    int center_y = LCD_HEIGHT / 2;
-    int mag_factor = 2;
-
     // Main loop
     while (1) {
-        // Read knob values - using KNOBS_8BIT register for rotation values
-        uint32_t knobs = *(volatile uint32_t*)(mem_base + SPILED_REG_KNOBS_8BIT_o);
+        // Read knob values directly from register
+        uint32_t r = *(volatile uint32_t*)(mem_base + SPILED_REG_KNOBS_8BIT_o);
         
-        // Extract individual knob values
-        uint8_t red_knob = (knobs >> 16) & 0xFF;    // Red knob (magnification)
-        uint8_t green_knob = (knobs >> 8) & 0xFF;   // Green knob (Y position)
-        uint8_t blue_knob = knobs & 0xFF;           // Blue knob (X position)
-
-        // Check specifically for blue button press (bit 24)
-        if (knobs & 0x1000000) {
+        // Check for blue button press (exit condition)
+        if (r & 0x1000000) {
             printf("Blue button pressed - exiting\n");
             break;
         }
 
-        // Update position and magnification based on knob rotations
-        center_x = (blue_knob * LCD_WIDTH) / 256;
-        center_y = (green_knob * LCD_HEIGHT) / 256;
-        mag_factor = 1 + (red_knob * 3) / 255;  // Maps 0-255 to 1-4
+        // Extract knob positions
+        int blue_val = r & 0xff;                  // X position (blue knob)
+        int green_val = (r >> 8) & 0xff;          // Y position (green knob)
+        int red_val = (r >> 16) & 0xff;           // Magnification (red knob)
+
+        // Calculate positions and magnification
+        int center_x = (blue_val * LCD_WIDTH) / 256;
+        int center_y = (green_val * LCD_HEIGHT) / 256;
+        int mag_factor = 1 + (red_val * 3) / 256;  // Maps 0-255 to 1-4
 
         // Clear frame buffer
         clear_frame_buffer(0x0000);
