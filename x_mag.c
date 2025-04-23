@@ -160,6 +160,8 @@ int main(int argc, char *argv[]) {
         .tv_nsec = 150 * 1000 * 1000  // 150ms
     };
 
+    printf("Starting main loop\n");
+
     // Main loop
     while (1) {
         // Read knob values directly from register
@@ -176,10 +178,17 @@ int main(int argc, char *argv[]) {
         int green_val = (r >> 8) & 0xff;          // Y position (green knob)
         int red_val = (r >> 16) & 0xff;           // Magnification (red knob)
 
+        // Debug print
+        printf("Raw register value: 0x%08x\n", r);
+        printf("Knob values - Blue: %d, Green: %d, Red: %d\n", blue_val, green_val, red_val);
+
         // Calculate positions and magnification
         int center_x = (blue_val * LCD_WIDTH) / 256;
         int center_y = (green_val * LCD_HEIGHT) / 256;
         int mag_factor = 1 + (red_val * 3) / 256;  // Maps 0-255 to 1-4
+
+        // Debug print calculated values
+        printf("Calculated positions - X: %d, Y: %d, Mag: %d\n", center_x, center_y, mag_factor);
 
         // Clear frame buffer
         clear_frame_buffer(0x0000);
@@ -196,6 +205,8 @@ int main(int argc, char *argv[]) {
         // Wait before next update
         clock_nanosleep(CLOCK_MONOTONIC, 0, &loop_delay, NULL);
     }
+
+    printf("Exiting main loop\n");
 
     // Clear screen before exit
     clear_frame_buffer(0x0000);
