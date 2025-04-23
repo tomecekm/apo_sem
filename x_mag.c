@@ -14,6 +14,7 @@
 #include "mzapo_phys.h"
 #include "mzapo_regs.h"
 #include "serialize_lock.h"
+#include "kote.c"  // Include the image data
 
 #define LCD_WIDTH 480
 #define LCD_HEIGHT 320
@@ -21,6 +22,8 @@
 
 // Global frame buffer
 unsigned short *fb;
+// Source image buffer
+unsigned short *source_buffer;
 
 // Function to draw a pixel to frame buffer
 void draw_pixel(int x, int y, uint16_t color) {
@@ -44,6 +47,30 @@ void clear_frame_buffer(uint16_t color) {
     }
 }
 
+// Function to load the image into source buffer
+void load_image_to_buffer() {
+    source_buffer = (unsigned short *)malloc(LCD_WIDTH * LCD_HEIGHT * sizeof(unsigned short));
+
+    // Clear source buffer first
+    for (int ptr = 0; ptr < LCD_WIDTH * LCD_HEIGHT; ptr++) {
+        source_buffer[ptr] = 0;
+    }
+
+    // Copy image data to center of source buffer
+    int start_x = (LCD_WIDTH - kote_png_width) / 2;
+    int start_y = (LCD_HEIGHT - kote_png_height) / 2;
+
+    for (int y = 0; y < kote_png_height; y++) {
+        for (int x = 0; x < kote_png_width; x++) {
+            int dest_x = start_x + x;
+            int dest_y = start_y + y;
+            if (dest_x >= 0 && dest_x < LCD_WIDTH && dest_y >= 0 && dest_y < LCD_HEIGHT) {
+                source_buffer[dest_x + LCD_WIDTH * dest_y] = kote_png[x + y * kote_png_width];
+            }
+        }
+    }
+}
+
 // Function to draw magnified area
 void draw_magnified_area(int center_x, int center_y) {
     int mag_width = LCD_WIDTH / MAGNIFICATION;
@@ -57,8 +84,11 @@ void draw_magnified_area(int center_x, int center_y) {
             int src_x = start_x + x;
             int src_y = start_y + y;
 
-            // Example color pattern (you can modify this)
-            uint16_t color = ((src_x & 0x1F) << 11) | ((src_y & 0x3F) << 5) | (0x1F);
+            // Get color from source buffer (with bounds checking)
+            uint16_t color = 0;
+            if (src_x >= 0 && src_x < LCD_WIDTH && src_y >= 0 && src_y < LCD_HEIGHT) {
+                color = source_buffer[src_x + LCD_WIDTH * src_y];
+            }
 
             // Draw magnified pixel
             for (int dy = 0; dy < MAGNIFICATION; dy++) {
@@ -89,11 +119,15 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // Load image into source buffer
+    load_image_to_buffer();
+
     // Map the LED peripheral
     unsigned char *led_mem_base = map_phys_address(SPILED_REG_BASE_PHYS, SPILED_REG_SIZE, 0);
     if (led_mem_base == NULL) {
         printf("ERROR: Failed to map LED peripheral\n");
         free(fb);
+        free(source_buffer);
         return 1;
     }
 
@@ -102,6 +136,7 @@ int main(int argc, char *argv[]) {
     if (parlcd_mem_base == NULL) {
         printf("ERROR: Failed to map LCD peripheral\n");
         free(fb);
+        free(source_buffer);
         return 1;
     }
 
@@ -155,6 +190,7 @@ int main(int argc, char *argv[]) {
 
     // Cleanup
     free(fb);
+    free(source_buffer);
     serialize_unlock();
 
     return 0;
