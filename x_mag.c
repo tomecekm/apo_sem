@@ -19,7 +19,7 @@
 #define LCD_HEIGHT 320
 #define MAGNIFICATION 2
 
-
+// Global frame buffer
 unsigned short *fb;
 
 // Function to draw a pixel to frame buffer
@@ -56,10 +56,10 @@ void draw_magnified_area(int center_x, int center_y) {
         for (int x = 0; x < mag_width; x++) {
             int src_x = start_x + x;
             int src_y = start_y + y;
-            
+
             // Example color pattern (you can modify this)
             uint16_t color = ((src_x & 0x1F) << 11) | ((src_y & 0x3F) << 5) | (0x1F);
-            
+
             // Draw magnified pixel
             for (int dy = 0; dy < MAGNIFICATION; dy++) {
                 for (int dx = 0; dx < MAGNIFICATION; dx++) {
@@ -126,25 +126,25 @@ int main(int argc, char *argv[]) {
     while (1) {
         // Read knob values
         int r = *(volatile uint32_t*)(led_mem_base + SPILED_REG_KNOBS_8BIT_o);
-        
+
         // Check for exit condition (blue button)
         if ((r & 0x7000000) != 0) {
             break;
         }
-        
+
         // Update position based on knobs
         center_x = ((r & 0xff) * LCD_WIDTH) / 256;
         center_y = (((r >> 8) & 0xff) * LCD_HEIGHT) / 256;
-        
+
         // Clear frame buffer
         clear_frame_buffer(0x0000);
-        
+
         // Draw magnified area
         draw_magnified_area(center_x, center_y);
-        
+
         // Update display
         update_display(parlcd_mem_base);
-        
+
         // Wait for next frame
         clock_nanosleep(CLOCK_MONOTONIC, 0, &loop_delay, NULL);
     }
