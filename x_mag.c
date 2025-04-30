@@ -15,30 +15,39 @@
 #include "mzapo_regs.h"
 #include "serialize_lock.h"
 #include "kote.c"
-#include "font_types.h"
-
-extern font_descriptor_t font_rom8x16;
-extern font_descriptor_t font_winFreeSystem14x16;
 
 #define LCD_WIDTH 480
 #define LCD_HEIGHT 320
 #define MAGNIFICATION 15
 
+// Global frame buffer
 unsigned short *fb;
+// Source image buffer
 unsigned short *source_buffer;
 
+// Function to draw a pixel to frame buffer
 void draw_pixel(int x, int y, uint16_t color) {
     if (x >= 0 && x < LCD_WIDTH && y >= 0 && y < LCD_HEIGHT) {
         fb[x + LCD_WIDTH * y] = color;
     }
 }
 
-void clear_frame_buffer(uint16_t color) {
-    for (int i = 0; i < LCD_WIDTH * LCD_HEIGHT; i++) {
-        fb[i] = color;
+// Function to update the entire display from frame buffer
+void update_display(unsigned char *parlcd_mem_base) {
+    parlcd_write_cmd(parlcd_mem_base, 0x2c);
+    for (int ptr = 0; ptr < LCD_WIDTH * LCD_HEIGHT; ptr++) {
+        parlcd_write_data(parlcd_mem_base, fb[ptr]);
     }
 }
 
+// Function to clear the frame buffer
+void clear_frame_buffer(uint16_t color) {
+    for (int ptr = 0; ptr < LCD_WIDTH * LCD_HEIGHT; ptr++) {
+        fb[ptr] = color;
+    }
+}
+
+// Function to load the image into source buffer
 void load_image_to_buffer() {
     source_buffer = (unsigned short *)malloc(LCD_WIDTH * LCD_HEIGHT * sizeof(unsigned short));
     if (source_buffer == NULL) {
@@ -46,16 +55,16 @@ void load_image_to_buffer() {
         return;
     }
 
-    // Clear source buffer with black color
-    for (int i = 0; i < LCD_WIDTH * LCD_HEIGHT; i++) {
-        source_buffer[i] = 0x0000;
+    // Clear source buffer first with black color
+    for (int ptr = 0; ptr < LCD_WIDTH * LCD_HEIGHT; ptr++) {
+        source_buffer[ptr] = 0x0000;
     }
 
-    // Center the image
+    // Calculate center position to place image
     int start_x = (LCD_WIDTH - kote_png_width) / 2;
     int start_y = (LCD_HEIGHT - kote_png_height) / 2;
 
-    // Copy image to center of buffer
+    // Copy image data to center of source buffer
     for (int y = 0; y < kote_png_height; y++) {
         for (int x = 0; x < kote_png_width; x++) {
             int dest_x = start_x + x;
@@ -67,6 +76,7 @@ void load_image_to_buffer() {
     }
 }
 
+// Function to draw magnified area
 void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     // Calculate viewing window size
     int window_width = LCD_WIDTH / mag_factor;
@@ -114,95 +124,58 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     }
 }
 
-void draw_text(int x, int y, char *text, font_descriptor_t *font, uint16_t color) {
-    int pos_x = x;
-    char *c = text;
-    while (*c) {
-        int char_width = font->width;
-        uint16_t *char_data = font->bits + (*c * font->height);
-        
-        for (int dy = 0; dy < font->height; dy++) {
-            uint16_t line = char_data[dy];
-            for (int dx = 0; dx < char_width; dx++) {
-                if (line & (0x8000 >> dx)) {
-                    draw_pixel(pos_x + dx, y + dy, color);
-                }
-            }
-        }
-        pos_x += char_width;
-        c++;
-    }
-}
-
-void draw_title_screen(void) {
-    clear_frame_buffer(0x0000);  // Černé pozadí
-    
-    // Vycentrování textu
-    char *title = "X-MAG";
-    int text_width = strlen(title) * font_winFreeSystem14x16.width;
-    int x = (LCD_WIDTH - text_width) / 2;
-    int y = (LCD_HEIGHT - font_winFreeSystem14x16.height) / 2;
-    
-    // Vykreslení hlavního nadpisu
-    draw_text(x, y, title, &font_winFreeSystem14x16, 0xFFFF);  // Bílý text
-    
-    // Přidání instrukcí pod nadpis
-    char *instruction = "Press RED button to start";
-    text_width = strlen(instruction) * font_rom8x16.width;
-    x = (LCD_WIDTH - text_width) / 2;
-    y += font_winFreeSystem14x16.height + 20;  // Mezera pod nadpisem
-    
-    draw_text(x, y, instruction, &font_rom8x16, 0x07E0);  // Zelený text
-    
-    // Aktualizace displeje
-    parlcd_write_cmd(parlcd_mem_base, 0x2c);
-    for (int i = 0; i < LCD_WIDTH * LCD_HEIGHT; i++) {
-        parlcd_write_data(parlcd_mem_base, fb[i]);
-    }
-}
-
 int main(int argc, char *argv[]) {
     printf("Starting X-Mag application\n");
 
+    /* Serialize execution of applications */
     if (serialize_lock(1) <= 0) {
         printf("System is occupied\n");
-        serialize_lock(0);
+        if (1) {
+            printf("Waiting\n");
+            serialize_lock(0);
+        }
     }
 
-    fb = (unsigned short *)malloc(LCD_WIDTH * LCD_HEIGHT * sizeof(unsigned short));
-    if (!fb) {
+    // Allocate frame buffer
+    fb = (unsigned short *)malloc(LCD_HEIGHT * LCD_WIDTH * sizeof(unsigned short));
+    if (fb == NULL) {
         printf("ERROR: Failed to allocate frame buffer\n");
         return 1;
     }
+    printf("Frame buffer allocated\n");
 
+    // Load image into source buffer
     load_image_to_buffer();
 
+    // Map the peripherals
     unsigned char *mem_base = map_phys_address(SPILED_REG_BASE_PHYS, SPILED_REG_SIZE, 0);
-    unsigned char *parlcd_mem_base = map_phys_address(PARLCD_REG_BASE_PHYS, PARLCD_REG_SIZE, 0);
-    
-    if (!mem_base || !parlcd_mem_base) {
-        printf("ERROR: Failed to map peripherals\n");
+    if (mem_base == NULL) {
+        printf("ERROR: Failed to map LED peripheral\n");
         free(fb);
         free(source_buffer);
         return 1;
     }
 
+    unsigned char *parlcd_mem_base = map_phys_address(PARLCD_REG_BASE_PHYS, PARLCD_REG_SIZE, 0);
+    if (parlcd_mem_base == NULL) {
+        printf("ERROR: Failed to map LCD peripheral\n");
+        free(fb);
+        free(source_buffer);
+        return 1;
+    }
+
+    // Initialize the LCD
     parlcd_hx8357_init(parlcd_mem_base);
 
+    // Setup timing
     struct timespec loop_delay = {
         .tv_sec = 0,
-        .tv_nsec = 150 * 1000 * 1000
+        .tv_nsec = 150 * 1000 * 1000  // 150ms
     };
 
-    // Stav aplikace
-    enum {
-        STATE_TITLE,
-        STATE_MAGNIFIER
-    } current_state = STATE_TITLE;
+    printf("Starting main loop\n");
 
-    // Nejdřív zobrazíme úvodní obrazovku
-    draw_title_screen();
-
+    // Main loop
     while (1) {
         uint32_t knobs = *(volatile uint32_t*)(mem_base + SPILED_REG_KNOBS_8BIT_o);
         
@@ -241,13 +214,16 @@ int main(int argc, char *argv[]) {
         clock_nanosleep(CLOCK_MONOTONIC, 0, &loop_delay, NULL);
     }
 
-    // Clear display before exit
+    printf("Exiting main loop\n");
+
+    // Clear screen before exit
     clear_frame_buffer(0x0000);
     parlcd_write_cmd(parlcd_mem_base, 0x2c);
-    for (int i = 0; i < LCD_WIDTH * LCD_HEIGHT; i++) {
+    for (int ptr = 0; ptr < LCD_WIDTH * LCD_HEIGHT; ptr++) {
         parlcd_write_data(parlcd_mem_base, 0);
     }
 
+    // Cleanup
     free(fb);
     free(source_buffer);
     serialize_unlock();
