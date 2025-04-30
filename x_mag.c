@@ -206,40 +206,36 @@ int main(int argc, char *argv[]) {
     while (1) {
         uint32_t knobs = *(volatile uint32_t*)(mem_base + SPILED_REG_KNOBS_8BIT_o);
         
-        // Kontrola modrého tlačítka pro ukončení
         if (knobs & 0x1000000) {
-            break;
+            break;  // Exit on blue button press
         }
 
-        switch (current_state) {
-            case STATE_TITLE:
-                // Čekáme na stisk červeného tlačítka
-                if (knobs & 0x4000000) {
-                    current_state = STATE_MAGNIFIER;
-                    // Vyčistíme buffer před přechodem do režimu lupy
-                    clear_frame_buffer(0x0000);
-                }
-                break;
+        // Get knob values (0-255)
+        int x_val = knobs & 0xff;
+        int y_val = (knobs >> 8) & 0xff;
+        int zoom_val = (knobs >> 16) & 0xff;
 
-            case STATE_MAGNIFIER:
-                // Původní logika lupy
-                int x_val = knobs & 0xff;
-                int y_val = (knobs >> 8) & 0xff;
-                int zoom_val = (knobs >> 16) & 0xff;
+        // Calculate magnification (1-15)
+        int mag_factor = 1 + (zoom_val * (MAGNIFICATION - 1)) / 255;
+        
+        // Calculate center position with bounds checking
+        int window_width = LCD_WIDTH / mag_factor;
+        int window_height = LCD_HEIGHT / mag_factor;
+        
+        // Map knob values to screen coordinates with boundary limits
+        int center_x = (x_val * (LCD_WIDTH - window_width)) / 255 + window_width / 2;
+        int center_y = (y_val * (LCD_HEIGHT - window_height)) / 255 + window_height / 2;
 
-                int mag_factor = 1 + (zoom_val * (MAGNIFICATION - 1)) / 255;
-                int center_x = (x_val * LCD_WIDTH) / 256;
-                int center_y = (y_val * LCD_HEIGHT) / 256;
+        // Clear frame buffer
+        clear_frame_buffer(0x0000);
 
-                clear_frame_buffer(0x0000);
-                draw_magnified_area(center_x, center_y, mag_factor);
+        // Draw magnified area
+        draw_magnified_area(center_x, center_y, mag_factor);
 
-                // Aktualizace displeje
-                parlcd_write_cmd(parlcd_mem_base, 0x2c);
-                for (int i = 0; i < LCD_WIDTH * LCD_HEIGHT; i++) {
-                    parlcd_write_data(parlcd_mem_base, fb[i]);
-                }
-                break;
+        // Update display
+        parlcd_write_cmd(parlcd_mem_base, 0x2c);
+        for (int i = 0; i < LCD_WIDTH * LCD_HEIGHT; i++) {
+            parlcd_write_data(parlcd_mem_base, fb[i]);
         }
 
         clock_nanosleep(CLOCK_MONOTONIC, 0, &loop_delay, NULL);
