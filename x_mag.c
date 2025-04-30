@@ -68,15 +68,21 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     int window_width = LCD_WIDTH / mag_factor;
     int window_height = LCD_HEIGHT / mag_factor;
     
-    // Calculate start position ensuring the window stays within bounds
-    int start_x = center_x - window_width / 2;
-    int start_y = center_y - window_height / 2;
+    // Calculate maximum allowed center positions to keep image within bounds
+    int max_center_x = LCD_WIDTH - (window_width / 2);
+    int min_center_x = window_width / 2;
+    int max_center_y = LCD_HEIGHT - (window_height / 2);
+    int min_center_y = window_height / 2;
     
-    // Adjust start positions to keep window within source image bounds
-    if (start_x < 0) start_x = 0;
-    if (start_y < 0) start_y = 0;
-    if (start_x + window_width > LCD_WIDTH) start_x = LCD_WIDTH - window_width;
-    if (start_y + window_height > LCD_HEIGHT) start_y = LCD_HEIGHT - window_height;
+    // Clamp center position within allowed bounds
+    center_x = (center_x < min_center_x) ? min_center_x : 
+              (center_x > max_center_x) ? max_center_x : center_x;
+    center_y = (center_y < min_center_y) ? min_center_y : 
+              (center_y > max_center_y) ? max_center_y : center_y;
+    
+    // Calculate start position from clamped center
+    int start_x = center_x - (window_width / 2);
+    int start_y = center_y - (window_height / 2);
 
     // Draw magnified content
     for (int y = 0; y < window_height; y++) {
@@ -140,6 +146,10 @@ int main(int argc, char *argv[]) {
         int x_val = knobs & 0xff;
         int y_val = (knobs >> 8) & 0xff;
         int zoom_val = (knobs >> 16) & 0xff;
+
+ 		printf("Raw register value: 0x%08x\n", r);
+        printf("Knob values - Blue: %d, Green: %d, Red: %d\n", blue_val, green_val, red_val);
+
 
         // Calculate magnification (1-15)
         int mag_factor = 1 + (zoom_val * (MAGNIFICATION - 1)) / 255;
