@@ -83,26 +83,9 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     int mag_height = LCD_HEIGHT / mag_factor;
     
     // Calculate the starting point for sampling the source image
-    int start_x = center_x - (mag_width / 2);
-    int start_y = center_y - (mag_height / 2);
-
-    // Ensure we don't try to read outside the source image boundaries
-    if (start_x < 0) {
-        center_x = mag_width / 2;
-        start_x = 0;
-    }
-    if (start_y < 0) {
-        center_y = mag_height / 2;
-        start_y = 0;
-    }
-    if (start_x + mag_width > LCD_WIDTH) {
-        center_x = LCD_WIDTH - mag_width / 2;
-        start_x = LCD_WIDTH - mag_width;
-    }
-    if (start_y + mag_height > LCD_HEIGHT) {
-        center_y = LCD_HEIGHT - mag_height / 2;
-        start_y = LCD_HEIGHT - mag_height;
-    }
+    // Použijeme přímo vypočítanou pozici jako start_x a start_y
+    int start_x = center_x;
+    int start_y = center_y;
 
     // Draw magnified pixels
     for (int y = 0; y < mag_height; y++) {
@@ -129,18 +112,11 @@ int calculate_bounded_position(int knob_val, int dimension, int mag_factor) {
     // Calculate viewing window size
     int window_size = dimension / mag_factor;
     
-    // Calculate maximum allowed center position
-    int max_center = dimension - window_size/2;
-    int min_center = window_size/2;
+    // Calculate the actual range where we can move
+    int max_pos = dimension - window_size;
     
-    // Calculate position based on knob value
-    int pos = (knob_val * dimension) / 256;
-    
-    // Bound the position
-    if (pos < min_center) pos = min_center;
-    if (pos > max_center) pos = max_center;
-    
-    return pos;
+    // Map knob value (0-255) to the valid range (0 to max_pos)
+    return (knob_val * max_pos) / 255;
 }
 
 int main(int argc, char *argv[]) {
@@ -206,27 +182,29 @@ int main(int argc, char *argv[]) {
         }
 
         // Extract knob positions
-        int blue_val = 255 - (r & 0xff);          // Inverted X position (blue knob)
-        int green_val = (r >> 8) & 0xff;          // Y position (green knob)
-        int red_val = (r >> 16) & 0xff;           // Magnification (red knob)
+        int blue_val = r & 0xff;          // X position (blue knob)
+        int green_val = (r >> 8) & 0xff;  // Y position (green knob)
+        int red_val = (r >> 16) & 0xff;   // Magnification (red knob)
 
         // Debug print
         printf("Raw register value: 0x%08x\n", r);
         printf("Knob values - Blue: %d, Green: %d, Red: %d\n", blue_val, green_val, red_val);
 
-        // Calculate positions and magnification
-        int mag_factor = 1 + (red_val * MAGNIFICATION) / 256;  // Maps 0-255 to 1-15
-        int center_x = calculate_bounded_position(blue_val, LCD_WIDTH, mag_factor);
-        int center_y = calculate_bounded_position(green_val, LCD_HEIGHT, mag_factor);
+        // Calculate magnification factor (1-15)
+        int mag_factor = 1 + (red_val * (MAGNIFICATION - 1)) / 255;
+
+        // Calculate start positions directly
+        int start_x = calculate_bounded_position(blue_val, LCD_WIDTH, mag_factor);
+        int start_y = calculate_bounded_position(green_val, LCD_HEIGHT, mag_factor);
 
         // Debug print calculated values
-        printf("Calculated positions - X: %d, Y: %d, Mag: %d\n", center_x, center_y, mag_factor);
+        printf("Calculated positions - X: %d, Y: %d, Mag: %d\n", start_x, start_y, mag_factor);
 
         // Clear frame buffer
         clear_frame_buffer(0x0000);
 
         // Draw magnified area
-        draw_magnified_area(center_x, center_y, mag_factor);
+        draw_magnified_area(start_x, start_y, mag_factor);
 
         // Update display
         parlcd_write_cmd(parlcd_mem_base, 0x2c);
