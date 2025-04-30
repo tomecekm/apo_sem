@@ -156,8 +156,8 @@ int main(int argc, char *argv[]) {
 
         // Calculate center position
         // Map x_val and y_val (0-255) to screen coordinates
-        int center_x = (x_val * LCD_WIDTH) / 256;
-        int center_y = (y_val * LCD_HEIGHT) / 256;
+        int center_x = (blue_val * LCD_WIDTH) / 256;
+        int center_y = (green_val * LCD_HEIGHT) / 256;
 
         // Clear frame buffer
         clear_frame_buffer(0x0000);
