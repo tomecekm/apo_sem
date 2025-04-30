@@ -143,12 +143,12 @@ int main(int argc, char *argv[]) {
         }
 
         // Get knob values (0-255)
-        int x_val = knobs & 0xff;
-        int y_val = (knobs >> 8) & 0xff;
+        int blue_val = knobs & 0xff;
+        int green_val = (knobs >> 8) & 0xff;
         int zoom_val = (knobs >> 16) & 0xff;
 
- 		printf("Raw register value: 0x%08x\n", r);
-        printf("Knob values - Blue: %d, Green: %d, Red: %d\n", blue_val, green_val, red_val);
+ 		printf("Raw register value: 0x%08x\n", knobs);
+        printf("Knob values - Blue: %d, Green: %d, Red: %d\n", blue_val, green_val, zoom_val);
 
 
         // Calculate magnification (1-15)
