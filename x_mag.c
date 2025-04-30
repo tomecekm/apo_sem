@@ -86,13 +86,23 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     int start_x = center_x - (mag_width / 2);
     int start_y = center_y - (mag_height / 2);
 
-    // Calculate maximum allowed start positions to prevent going off screen
-    int max_start_x = LCD_WIDTH - mag_width;
-    int max_start_y = LCD_HEIGHT - mag_height;
-
-    // Ensure start positions are within bounds
-    start_x = (start_x < 0) ? 0 : (start_x > max_start_x) ? max_start_x : start_x;
-    start_y = (start_y < 0) ? 0 : (start_y > max_start_y) ? max_start_y : start_y;
+    // Ensure we don't try to read outside the source image boundaries
+    if (start_x < 0) {
+        center_x = mag_width / 2;
+        start_x = 0;
+    }
+    if (start_y < 0) {
+        center_y = mag_height / 2;
+        start_y = 0;
+    }
+    if (start_x + mag_width > LCD_WIDTH) {
+        center_x = LCD_WIDTH - mag_width / 2;
+        start_x = LCD_WIDTH - mag_width;
+    }
+    if (start_y + mag_height > LCD_HEIGHT) {
+        center_y = LCD_HEIGHT - mag_height / 2;
+        start_y = LCD_HEIGHT - mag_height;
+    }
 
     // Draw magnified pixels
     for (int y = 0; y < mag_height; y++) {
@@ -103,18 +113,34 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
             // Get color from source buffer
             uint16_t color = source_buffer[src_x + LCD_WIDTH * src_y];
 
-            // Calculate destination coordinates
-            int dest_base_x = x * mag_factor;
-            int dest_base_y = y * mag_factor;
-
-            // Draw magnified pixel only if it's within screen bounds
-            for (int dy = 0; dy < mag_factor && dest_base_y + dy < LCD_HEIGHT; dy++) {
-                for (int dx = 0; dx < mag_factor && dest_base_x + dx < LCD_WIDTH; dx++) {
-                    draw_pixel(dest_base_x + dx, dest_base_y + dy, color);
+            // Draw magnified pixel
+            for (int dy = 0; dy < mag_factor; dy++) {
+                for (int dx = 0; dx < mag_factor; dx++) {
+                    int dest_x = x * mag_factor + dx;
+                    int dest_y = y * mag_factor + dy;
+                    draw_pixel(dest_x, dest_y, color);
                 }
             }
         }
     }
+}
+
+int calculate_bounded_position(int knob_val, int dimension, int mag_factor) {
+    // Calculate viewing window size
+    int window_size = dimension / mag_factor;
+    
+    // Calculate maximum allowed center position
+    int max_center = dimension - window_size/2;
+    int min_center = window_size/2;
+    
+    // Calculate position based on knob value
+    int pos = (knob_val * dimension) / 256;
+    
+    // Bound the position
+    if (pos < min_center) pos = min_center;
+    if (pos > max_center) pos = max_center;
+    
+    return pos;
 }
 
 int main(int argc, char *argv[]) {
@@ -189,9 +215,9 @@ int main(int argc, char *argv[]) {
         printf("Knob values - Blue: %d, Green: %d, Red: %d\n", blue_val, green_val, red_val);
 
         // Calculate positions and magnification
-        int center_x = (blue_val * LCD_WIDTH) / 256;
-        int center_y = (green_val * LCD_HEIGHT) / 256;
         int mag_factor = 1 + (red_val * MAGNIFICATION) / 256;  // Maps 0-255 to 1-15
+        int center_x = calculate_bounded_position(blue_val, LCD_WIDTH, mag_factor);
+        int center_y = calculate_bounded_position(green_val, LCD_HEIGHT, mag_factor);
 
         // Debug print calculated values
         printf("Calculated positions - X: %d, Y: %d, Mag: %d\n", center_x, center_y, mag_factor);
