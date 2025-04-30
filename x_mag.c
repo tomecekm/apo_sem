@@ -64,38 +64,37 @@ void load_image_to_buffer() {
 }
 
 void draw_magnified_area(int center_x, int center_y, int mag_factor) {
-    // Calculate viewing window size
-    int window_width = LCD_WIDTH / mag_factor;
-    int window_height = LCD_HEIGHT / mag_factor;
-    
-    // Calculate maximum allowed center positions to keep image within bounds
-    int max_center_x = LCD_WIDTH - (window_width / 2);
-    int min_center_x = window_width / 2;
-    int max_center_y = LCD_HEIGHT - (window_height / 2);
-    int min_center_y = window_height / 2;
-    
-    // Clamp center position within allowed bounds
-    center_x = (center_x < min_center_x) ? min_center_x : 
-              (center_x > max_center_x) ? max_center_x : center_x;
-    center_y = (center_y < min_center_y) ? min_center_y : 
-              (center_y > max_center_y) ? max_center_y : center_y;
-    
-    // Calculate start position from clamped center
-    int start_x = center_x - (window_width / 2);
-    int start_y = center_y - (window_height / 2);
+    // Calculate the size of the area to magnify
+    int mag_width = LCD_WIDTH / mag_factor;
+    int mag_height = LCD_HEIGHT / mag_factor;
 
-    // Draw magnified content
-    for (int y = 0; y < window_height; y++) {
-        for (int x = 0; x < window_width; x++) {
-            // Get source pixel
-            uint16_t color = source_buffer[(start_y + y) * LCD_WIDTH + (start_x + x)];
-            
-            // Draw magnified pixel
-            for (int my = 0; my < mag_factor; my++) {
-                for (int mx = 0; mx < mag_factor; mx++) {
-                    int display_x = x * mag_factor + mx;
-                    int display_y = y * mag_factor + my;
-                    draw_pixel(display_x, display_y, color);
+    // Calculate the starting point for sampling the source image
+    int start_x = center_x - (mag_width / 2);
+    int start_y = center_y - (mag_height / 2);
+
+    // Ensure start positions are within bounds
+    if (start_x < 0) start_x = 0;
+    if (start_y < 0) start_y = 0;
+    if (start_x + mag_width > LCD_WIDTH) start_x = LCD_WIDTH - mag_width;
+    if (start_y + mag_height > LCD_HEIGHT) start_y = LCD_HEIGHT - mag_height;
+
+    // Draw magnified pixels
+    for (int y = 0; y < mag_height; y++) {
+        for (int x = 0; x < mag_width; x++) {
+            int src_x = start_x + x;
+            int src_y = start_y + y;
+
+            // Ensure src_x and src_y are within bounds of the source buffer
+            if (src_x >= 0 && src_x < LCD_WIDTH && src_y >= 0 && src_y < LCD_HEIGHT) {
+                uint16_t color = source_buffer[src_x + LCD_WIDTH * src_y];
+
+                // Draw magnified pixel
+                for (int dy = 0; dy < mag_factor; dy++) {
+                    for (int dx = 0; dx < mag_factor; dx++) {
+                        int dest_x = x * mag_factor + dx;
+                        int dest_y = y * mag_factor + dy;
+                        draw_pixel(dest_x, dest_y, color);
+                    }
                 }
             }
         }
