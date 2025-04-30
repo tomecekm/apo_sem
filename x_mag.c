@@ -1,5 +1,5 @@
 /*******************************************************************
-  X-Mag implementation for MicroZed based MZ_APO board
+  X-Mag implementation  MZ_APO board
  *******************************************************************/
 
 #define _POSIX_C_SOURCE 200112L
@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
         // Calculate positions and magnification
         int center_x = (blue_val * LCD_WIDTH) / 256;
         int center_y = (green_val * LCD_HEIGHT) / 256;
-        int mag_factor = 1 + (red_val * MAGNIFICATION) / 256;  // Maps 0-255 to 1-8
+        int mag_factor = 1 + (red_val * MAGNIFICATION) / 256;  // Maps 0-255 to 1-15
 
         // Debug print calculated values
         printf("Calculated positions - X: %d, Y: %d, Mag: %d\n", center_x, center_y, mag_factor);
