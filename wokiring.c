@@ -15,7 +15,6 @@
 #include "mzapo_regs.h"
 #include "serialize_lock.h"
 #include "kote.c"
-#include "font_types.h"
 
 #define LCD_WIDTH 480
 #define LCD_HEIGHT 320
@@ -82,7 +81,7 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     // Calculate the size of the area to magnify
     int mag_width = LCD_WIDTH / mag_factor;
     int mag_height = LCD_HEIGHT / mag_factor;
-    
+
     // Calculate the starting point for sampling the source image
     int start_x = center_x - (mag_width / 2);
     int start_y = center_y - (mag_height / 2);
@@ -96,7 +95,7 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
         for (int x = 0; x < mag_width; x++) {
             int src_x = start_x + x;
             int src_y = start_y + y;
-            
+
             // Get color from source buffer
             uint16_t color = source_buffer[src_x + LCD_WIDTH * src_y];
 
@@ -112,14 +111,10 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     }
 }
 
-#define MENU_START 0
-#define MENU_QUIT 1
-#define MENU_COLOR 0xFFFF  // White color
-#define MENU_SELECT_COLOR 0xF800  // Red color
-
 int main(int argc, char *argv[]) {
     printf("Starting X-Mag application\n");
-    
+
+    /* Serialize execution of applications */
     if (serialize_lock(1) <= 0) {
         printf("System is occupied\n");
         if (1) {
@@ -136,11 +131,15 @@ int main(int argc, char *argv[]) {
     }
     printf("Frame buffer allocated\n");
 
+    // Load image into source buffer
+    load_image_to_buffer();
+
     // Map the peripherals
     unsigned char *mem_base = map_phys_address(SPILED_REG_BASE_PHYS, SPILED_REG_SIZE, 0);
     if (mem_base == NULL) {
         printf("ERROR: Failed to map LED peripheral\n");
         free(fb);
+        free(source_buffer);
         return 1;
     }
 
@@ -148,6 +147,7 @@ int main(int argc, char *argv[]) {
     if (parlcd_mem_base == NULL) {
         printf("ERROR: Failed to map LCD peripheral\n");
         free(fb);
+        free(source_buffer);
         return 1;
     }
 
@@ -157,118 +157,68 @@ int main(int argc, char *argv[]) {
     // Setup timing
     struct timespec loop_delay = {
         .tv_sec = 0,
-        .tv_nsec = 150 * 1000 * 1000
+        .tv_nsec = 150 * 1000 * 1000  // 150ms
     };
 
-    // Menu state
-    int in_menu = 1;
-    int selected_item = MENU_START;
-    int prev_red_button = 0;
+    printf("Starting main loop\n");
 
     // Main loop
     while (1) {
+        // Read knob values directly from register
         uint32_t r = *(volatile uint32_t*)(mem_base + SPILED_REG_KNOBS_8BIT_o);
-        int red_button = (r & 0x4000000) != 0;
 
-        if (in_menu) {
-            // Menu navigation
-            if (red_button && !prev_red_button) {
-                selected_item = (selected_item == MENU_START) ? MENU_QUIT : MENU_START;
-            }
-
-            // Menu selection (using blue button)
-            if (r & 0x1000000) {
-                if (selected_item == MENU_START) {
-                    // Start the application
-                    in_menu = 0;
-                    load_image_to_buffer();
-                } else {
-                    // Quit
-                    break;
-                }
-            }
-
-            // Draw menu
-            clear_frame_buffer(0x0000);  // Black background
-            draw_menu(selected_item);
-            update_display(parlcd_mem_base);
-        } else {
-            // Normal application logic
-            if (r & 0x1000000) {  // Blue button returns to menu
-                in_menu = 1;
-                free(source_buffer);
-                continue;
-            }
-
-            // Your existing application logic here
-            int blue_val = 255 - (r & 0xff);
-            int green_val = (r >> 8) & 0xff;
-            int red_val = (r >> 16) & 0xff;
-
-            int center_x = (blue_val * LCD_WIDTH) / 256;
-            int center_y = (green_val * LCD_HEIGHT) / 256;
-            int mag_factor = 1 + (red_val * MAGNIFICATION) / 256;
-
-            clear_frame_buffer(0x0000);
-            draw_magnified_area(center_x, center_y, mag_factor);
-            update_display(parlcd_mem_base);
+        // Check for blue button press (exit condition)
+        if (r & 0x1000000) {
+            printf("Blue button pressed - exiting\n");
+            break;
         }
 
-        prev_red_button = red_button;
+        // Extract knob positions
+        int blue_val = 255 - (r & 0xff);          // Inverted X position (blue knob)
+        int green_val = (r >> 8) & 0xff;          // Y position (green knob)
+        int red_val = (r >> 16) & 0xff;           // Magnification (red knob)
+
+        // Debug print
+        printf("Raw register value: 0x%08x\n", r);
+        printf("Knob values - Blue: %d, Green: %d, Red: %d\n", blue_val, green_val, red_val);
+
+        // Calculate positions and magnification
+        int center_x = (blue_val * LCD_WIDTH) / 256;
+        int center_y = (green_val * LCD_HEIGHT) / 256;
+        int mag_factor = 1 + (red_val * MAGNIFICATION) / 256;  // Maps 0-255 to 1-15
+
+        // Debug print calculated values
+        printf("Calculated positions - X: %d, Y: %d, Mag: %d\n", center_x, center_y, mag_factor);
+
+        // Clear frame buffer
+        clear_frame_buffer(0x0000);
+
+        // Draw magnified area
+        draw_magnified_area(center_x, center_y, mag_factor);
+
+        // Update display
+        parlcd_write_cmd(parlcd_mem_base, 0x2c);
+        for (int ptr = 0; ptr < LCD_WIDTH * LCD_HEIGHT; ptr++) {
+            parlcd_write_data(parlcd_mem_base, fb[ptr]);
+        }
+
+        // Wait before next update
         clock_nanosleep(CLOCK_MONOTONIC, 0, &loop_delay, NULL);
     }
 
-    // Cleanup
-    clear_screen(parlcd_mem_base);
-    free(fb);
-    if (!in_menu) {
-        free(source_buffer);
-    }
-    serialize_unlock();
+    printf("Exiting main loop\n");
 
-    return 0;
-}
-
-void draw_text(int x, int y, const char *text, font_descriptor_t *font, uint16_t color) {
-    int orig_x = x;
-    
-    while (*text) {
-        int char_idx = *text - font->firstchar;
-        if (char_idx >= 0 && char_idx < font->size) {
-            const font_bits_t *bits = &font->bits[char_idx * font->height];
-            int char_width = font->width ? font->width[char_idx] : font->maxwidth;
-            
-            for (int i = 0; i < font->height; i++) {
-                font_bits_t mask = 1 << (font->maxwidth - 1);
-                for (int j = 0; j < char_width; j++) {
-                    if (bits[i] & mask) {
-                        draw_pixel(x + j, y + i, color);
-                    }
-                    mask >>= 1;
-                }
-            }
-            x += char_width + 1;
-        }
-        text++;
-    }
-}
-
-void draw_menu(int selected_item) {
-    // Draw title
-    draw_text(LCD_WIDTH/2 - 50, 50, "X-MAG", &font_winFreeSystem14x16, MENU_COLOR);
-    
-    // Draw menu items
-    draw_text(LCD_WIDTH/2 - 30, 150, "START", &font_winFreeSystem14x16, 
-             (selected_item == MENU_START) ? MENU_SELECT_COLOR : MENU_COLOR);
-    
-    draw_text(LCD_WIDTH/2 - 30, 200, "QUIT", &font_winFreeSystem14x16, 
-             (selected_item == MENU_QUIT) ? MENU_SELECT_COLOR : MENU_COLOR);
-}
-
-void clear_screen(unsigned char *parlcd_mem_base) {
+    // Clear screen before exit
     clear_frame_buffer(0x0000);
     parlcd_write_cmd(parlcd_mem_base, 0x2c);
     for (int ptr = 0; ptr < LCD_WIDTH * LCD_HEIGHT; ptr++) {
         parlcd_write_data(parlcd_mem_base, 0);
     }
+
+    // Cleanup
+    free(fb);
+    free(source_buffer);
+    serialize_unlock();
+
+    return 0;
 }
