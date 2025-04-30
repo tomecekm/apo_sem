@@ -72,22 +72,18 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     int start_x = center_x - (window_width / 2);
     int start_y = center_y - (window_height / 2);
     
-    // Adjust start positions to prevent going beyond screen edges
-    if (start_x < 0) {
-        start_x = 0;
-        center_x = window_width / 2;
-    }
-    if (start_y < 0) {
-        start_y = 0;
-        center_y = window_height / 2;
-    }
+    // Wrap around screen edges
     if (start_x + window_width > LCD_WIDTH) {
-        start_x = LCD_WIDTH - window_width;
-        center_x = LCD_WIDTH - window_width / 2;
+        start_x = 0;
     }
     if (start_y + window_height > LCD_HEIGHT) {
+        start_y = 0;
+    }
+    if (start_x < 0) {
+        start_x = LCD_WIDTH - window_width;
+    }
+    if (start_y < 0) {
         start_y = LCD_HEIGHT - window_height;
-        center_y = LCD_HEIGHT - window_height / 2;
     }
 
     // Draw magnified content
@@ -154,17 +150,18 @@ int main(int argc, char *argv[]) {
         int x_val = knobs & 0xff;
         int y_val = (knobs >> 8) & 0xff;
         int zoom_val = (knobs >> 16) & 0xff;
+ 		printf("Knob values - Blue: %d, Green: %d, Red: %d\n", x_val, y_val, zoom_val);
 
         // Calculate magnification (1-15)
         int mag_factor = 1 + (zoom_val * (MAGNIFICATION - 1)) / 255;
         
-        // Calculate center position with bounds checking
+        // Calculate window dimensions
         int window_width = LCD_WIDTH / mag_factor;
         int window_height = LCD_HEIGHT / mag_factor;
         
-        // Map knob values to screen coordinates with boundary limits
-        int center_x = (x_val * (LCD_WIDTH - window_width)) / 255 + window_width / 2;
-        int center_y = (y_val * (LCD_HEIGHT - window_height)) / 255 + window_height / 2;
+        // Calculate center position
+        int center_x = (x_val * LCD_WIDTH) / 256;
+        int center_y = (y_val * LCD_HEIGHT) / 256;
 
         // Clear frame buffer
         clear_frame_buffer(0x0000);
