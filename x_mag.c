@@ -15,6 +15,10 @@
 #include "mzapo_regs.h"
 #include "serialize_lock.h"
 #include "kote.c"
+#include "font_types.h"
+
+extern font_descriptor_t font_rom8x16;
+extern font_descriptor_t font_winFreeSystem14x16;
 
 #define LCD_WIDTH 480
 #define LCD_HEIGHT 320
@@ -72,18 +76,22 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     int start_x = center_x - (window_width / 2);
     int start_y = center_y - (window_height / 2);
     
-    // Wrap around screen edges
-    if (start_x + window_width > LCD_WIDTH) {
-        start_x = 0;
-    }
-    if (start_y + window_height > LCD_HEIGHT) {
-        start_y = 0;
-    }
+    // Adjust start positions to prevent going beyond screen edges
     if (start_x < 0) {
-        start_x = LCD_WIDTH - window_width;
+        start_x = 0;
+        center_x = window_width / 2;
     }
     if (start_y < 0) {
+        start_y = 0;
+        center_y = window_height / 2;
+    }
+    if (start_x + window_width > LCD_WIDTH) {
+        start_x = LCD_WIDTH - window_width;
+        center_x = LCD_WIDTH - window_width / 2;
+    }
+    if (start_y + window_height > LCD_HEIGHT) {
         start_y = LCD_HEIGHT - window_height;
+        center_y = LCD_HEIGHT - window_height / 2;
     }
 
     // Draw magnified content
@@ -103,6 +111,53 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
                 }
             }
         }
+    }
+}
+
+void draw_text(int x, int y, char *text, font_descriptor_t *font, uint16_t color) {
+    int pos_x = x;
+    char *c = text;
+    while (*c) {
+        int char_width = font->width;
+        uint16_t *char_data = font->bits + (*c * font->height);
+        
+        for (int dy = 0; dy < font->height; dy++) {
+            uint16_t line = char_data[dy];
+            for (int dx = 0; dx < char_width; dx++) {
+                if (line & (0x8000 >> dx)) {
+                    draw_pixel(pos_x + dx, y + dy, color);
+                }
+            }
+        }
+        pos_x += char_width;
+        c++;
+    }
+}
+
+void draw_title_screen(void) {
+    clear_frame_buffer(0x0000);  // Černé pozadí
+    
+    // Vycentrování textu
+    char *title = "X-MAG";
+    int text_width = strlen(title) * font_winFreeSystem14x16.width;
+    int x = (LCD_WIDTH - text_width) / 2;
+    int y = (LCD_HEIGHT - font_winFreeSystem14x16.height) / 2;
+    
+    // Vykreslení hlavního nadpisu
+    draw_text(x, y, title, &font_winFreeSystem14x16, 0xFFFF);  // Bílý text
+    
+    // Přidání instrukcí pod nadpis
+    char *instruction = "Press RED button to start";
+    text_width = strlen(instruction) * font_rom8x16.width;
+    x = (LCD_WIDTH - text_width) / 2;
+    y += font_winFreeSystem14x16.height + 20;  // Mezera pod nadpisem
+    
+    draw_text(x, y, instruction, &font_rom8x16, 0x07E0);  // Zelený text
+    
+    // Aktualizace displeje
+    parlcd_write_cmd(parlcd_mem_base, 0x2c);
+    for (int i = 0; i < LCD_WIDTH * LCD_HEIGHT; i++) {
+        parlcd_write_data(parlcd_mem_base, fb[i]);
     }
 }
 
@@ -139,40 +194,52 @@ int main(int argc, char *argv[]) {
         .tv_nsec = 150 * 1000 * 1000
     };
 
+    // Stav aplikace
+    enum {
+        STATE_TITLE,
+        STATE_MAGNIFIER
+    } current_state = STATE_TITLE;
+
+    // Nejdřív zobrazíme úvodní obrazovku
+    draw_title_screen();
+
     while (1) {
         uint32_t knobs = *(volatile uint32_t*)(mem_base + SPILED_REG_KNOBS_8BIT_o);
         
+        // Kontrola modrého tlačítka pro ukončení
         if (knobs & 0x1000000) {
-            break;  // Exit on blue button press
+            break;
         }
 
-        // Get knob values (0-255)
-        int x_val = knobs & 0xff;
-        int y_val = (knobs >> 8) & 0xff;
-        int zoom_val = (knobs >> 16) & 0xff;
- 		printf("Knob values - Blue: %d, Green: %d, Red: %d\n", x_val, y_val, zoom_val);
+        switch (current_state) {
+            case STATE_TITLE:
+                // Čekáme na stisk červeného tlačítka
+                if (knobs & 0x4000000) {
+                    current_state = STATE_MAGNIFIER;
+                    // Vyčistíme buffer před přechodem do režimu lupy
+                    clear_frame_buffer(0x0000);
+                }
+                break;
 
-        // Calculate magnification (1-15)
-        int mag_factor = 1 + (zoom_val * (MAGNIFICATION - 1)) / 255;
-        
-        // Calculate window dimensions
-        int window_width = LCD_WIDTH / mag_factor;
-        int window_height = LCD_HEIGHT / mag_factor;
-        
-        // Calculate center position
-        int center_x = (x_val * LCD_WIDTH) / 256;
-        int center_y = (y_val * LCD_HEIGHT) / 256;
+            case STATE_MAGNIFIER:
+                // Původní logika lupy
+                int x_val = knobs & 0xff;
+                int y_val = (knobs >> 8) & 0xff;
+                int zoom_val = (knobs >> 16) & 0xff;
 
-        // Clear frame buffer
-        clear_frame_buffer(0x0000);
+                int mag_factor = 1 + (zoom_val * (MAGNIFICATION - 1)) / 255;
+                int center_x = (x_val * LCD_WIDTH) / 256;
+                int center_y = (y_val * LCD_HEIGHT) / 256;
 
-        // Draw magnified area
-        draw_magnified_area(center_x, center_y, mag_factor);
+                clear_frame_buffer(0x0000);
+                draw_magnified_area(center_x, center_y, mag_factor);
 
-        // Update display
-        parlcd_write_cmd(parlcd_mem_base, 0x2c);
-        for (int i = 0; i < LCD_WIDTH * LCD_HEIGHT; i++) {
-            parlcd_write_data(parlcd_mem_base, fb[i]);
+                // Aktualizace displeje
+                parlcd_write_cmd(parlcd_mem_base, 0x2c);
+                for (int i = 0; i < LCD_WIDTH * LCD_HEIGHT; i++) {
+                    parlcd_write_data(parlcd_mem_base, fb[i]);
+                }
+                break;
         }
 
         clock_nanosleep(CLOCK_MONOTONIC, 0, &loop_delay, NULL);
