@@ -69,7 +69,6 @@ void load_image_to_buffer() {
         for (int x = 0; x < kote_png_width; x++) {
             int dest_x = start_x + x;
             int dest_y = start_y + y;
-			printf("dest_x: %d, dest_y: %d\n", dest_x, dest_y);
             if (dest_x >= 0 && dest_x < LCD_WIDTH && dest_y >= 0 && dest_y < LCD_HEIGHT) {
                 source_buffer[dest_x + LCD_WIDTH * dest_y] = kote_png[x + y * kote_png_width];
             }
@@ -124,6 +123,42 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     }
 }
 
+// Function to animate LED line
+void animate_led_line(unsigned char *mem_base) {
+    uint32_t val_line = 5;
+    uint32_t val_line = 1;
+    int direction = 1; // 1 = left to right, -1 = right to left
+
+    // Set initial LED line value
+    *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
+    printf("Starting LED line animation\n");
+
+    // Start LED animation in background by shifting bits
+    for (int i = 0; i < 30; i++) {
+        val_line <<= 1;
+        *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
+        usleep(100000); // 100ms delay between shifts
+    // Animate LED line back and forth
+    for (int i = 0; i < 3; i++) { // Do 3 complete cycles
+        // Move from left to right
+        val_line = 1;
+        while (val_line < 0x80000000) {
+            *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
+            val_line <<= 1;
+            usleep(50000); // 50ms delay between shifts
+        }
+
+        // Move from right to left
+        while (val_line > 1) {
+            val_line >>= 1;
+            *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
+            usleep(50000); // 50ms delay between shifts
+        }
+    }
+
+    printf("LED animation complete\n");
+}
+
 int main(int argc, char *argv[]) {
     printf("Starting X-Mag application\n");
 
@@ -172,6 +207,7 @@ int main(int argc, char *argv[]) {
         .tv_sec = 0,
         .tv_nsec = 150 * 1000 * 1000  // 150ms
     };
+	animate_led_line(mem_base);
 
     printf("Starting main loop\n");
 
@@ -198,7 +234,7 @@ int main(int argc, char *argv[]) {
         // Calculate positions and magnification
         int center_x = (blue_val * LCD_WIDTH) / 255;
         int center_y = (green_val * LCD_HEIGHT) / 255;
-        int mag_factor = 2 + (red_val * (MAGNIFICATION - 2)) / 255;  // Maps 0-255 to 2-MAGNIFICATION
+        int mag_factor = 2 + (red_val * (MAGNIFICATION - 2)) / 255;
 
         // Debug print calculated values
         printf("Calculated positions - X: %d, Y: %d, Mag: %d\n", center_x, center_y, mag_factor);
