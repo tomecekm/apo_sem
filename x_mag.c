@@ -9,12 +9,14 @@
 #include <stdint.h>
 #include <time.h>
 #include <unistd.h>
+#include <math.h>
 
 #include "mzapo_parlcd.h"
 #include "mzapo_phys.h"
 #include "mzapo_regs.h"
 #include "serialize_lock.h"
 #include "kote.c"
+#include "font_types.h"
 
 #define LCD_WIDTH 480
 #define LCD_HEIGHT 320
@@ -147,13 +149,165 @@ void animate_led_line(unsigned char *mem_base) {
     for (int i = 0; i < 30; i++) {
         *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
         val_line >>= 1;
-        printf("LED val 0x%x\n", val_line);
         usleep(100000); // 100ms delay
     }
     
     // Clear LED line at the end
     *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = 0;
     printf("LED animation complete\n");
+}
+
+// Funkce pro převod HSV na RGB pro LCD
+unsigned int hsv2rgb_lcd(int hue, int saturation, int value) {
+    hue = (hue % 360);    
+    float f = ((hue % 60) / 60.0);
+    int p = (value * (255 - saturation)) / 255;
+    int q = (value * (255 - (saturation * f))) / 255;
+    int t = (value * (255 - (saturation * (1.0 - f)))) / 255;
+    unsigned int r, g, b;
+    
+    if (hue < 60) {
+        r = value; g = t; b = p;
+    } else if (hue < 120) {
+        r = q; g = value; b = p;
+    } else if (hue < 180) {
+        r = p; g = value; b = t;
+    } else if (hue < 240) {
+        r = p; g = q; b = value;
+    } else if (hue < 300) {
+        r = t; g = p; b = value;
+    } else {
+        r = value; g = p; b = q;
+    }
+    
+    r >>= 3;
+    g >>= 2;
+    b >>= 3;
+    
+    return (((r & 0x1f) << 11) | ((g & 0x3f) << 5) | (b & 0x1f));
+}
+
+// Funkce pro získání šířky znaku
+int char_width(font_descriptor_t *fdes, int ch) {
+    int width;
+    if (!fdes->width) {
+        width = fdes->maxwidth;
+    } else {
+        width = fdes->width[ch - fdes->firstchar];
+    }
+    return width;
+}
+
+// Funkce pro vykreslení znaku
+void draw_char(int x, int y, char ch, unsigned short color, font_descriptor_t *fdes, int scale) {
+    int w = char_width(fdes, ch);
+    const font_bits_t *ptr;
+    
+    if ((ch >= fdes->firstchar) && (ch - fdes->firstchar < fdes->size)) {
+        if (fdes->offset) {
+            ptr = &fdes->bits[fdes->offset[ch - fdes->firstchar]];
+        } else {
+            int bw = (fdes->maxwidth + 15) / 16;
+            ptr = &fdes->bits[(ch - fdes->firstchar) * bw * fdes->height];
+        }
+        
+        for (int i = 0; i < fdes->height; i++) {
+            font_bits_t val = *ptr;
+            for (int j = 0; j < w; j++) {
+                if ((val & 0x8000) != 0) {
+                    // Vykreslení zvětšeného pixelu
+                    for (int si = 0; si < scale; si++) {
+                        for (int sj = 0; sj < scale; sj++) {
+                            draw_pixel(x + scale * j + si, y + scale * i + sj, color);
+                        }
+                    }
+                }
+                val <<= 1;
+            }
+            ptr++;
+        }
+    }
+}
+
+// Funkce pro vykreslení textu
+void draw_text(int x, int y, const char *text, unsigned short color, font_descriptor_t *fdes, int scale) {
+    int cx = x;
+    
+    while (*text) {
+        draw_char(cx, y, *text, color, fdes, scale);
+        cx += char_width(fdes, *text) * scale;
+        text++;
+    }
+}
+
+// Funkce pro zobrazení menu
+int show_menu(unsigned char *parlcd_mem_base, unsigned char *mem_base) {
+    // Vyčistit frame buffer
+    clear_frame_buffer(0x0000);
+    
+    // Nastavení fontů
+    font_descriptor_t *title_font = &font_winFreeSystem14x16;
+    font_descriptor_t *menu_font = &font_rom8x16;
+    
+    // Barvy
+    unsigned short title_color = hsv2rgb_lcd(210, 255, 255); // Modrá
+    unsigned short start_color = hsv2rgb_lcd(120, 255, 255); // Zelená
+    unsigned short quit_color = hsv2rgb_lcd(0, 255, 255);    // Červená
+    unsigned short selected_color = 0xFFFF;                  // Bílá
+    
+    // Pozice textu
+    int title_x = (LCD_WIDTH - strlen("X-MAG") * title_font->maxwidth * 4) / 2;
+    int title_y = 80;
+    int start_x = (LCD_WIDTH - strlen("START") * menu_font->maxwidth * 2) / 2;
+    int start_y = 180;
+    int quit_x = (LCD_WIDTH - strlen("QUIT") * menu_font->maxwidth * 2) / 2;
+    int quit_y = 220;
+    
+    // Proměnné pro výběr
+    int selected = 0; // 0 = START, 1 = QUIT
+    int exit_menu = 0;
+    
+    // Hlavní smyčka menu
+    while (!exit_menu) {
+        // Vyčistit frame buffer
+        clear_frame_buffer(0x0000);
+        
+        // Vykreslit název
+        draw_text(title_x, title_y, "X-MAG", title_color, title_font, 4);
+        
+        // Vykreslit položky menu
+        draw_text(start_x, start_y, "START", (selected == 0) ? selected_color : start_color, menu_font, 2);
+        draw_text(quit_x, quit_y, "QUIT", (selected == 1) ? selected_color : quit_color, menu_font, 2);
+        
+        // Aktualizovat displej
+        update_display(parlcd_mem_base);
+        
+        // Čtení hodnot knobu a tlačítek
+        uint32_t r = *(volatile uint32_t*)(mem_base + SPILED_REG_KNOBS_8BIT_o);
+        
+        // Kontrola tlačítek
+        if (r & 0x4000000) { // Zelené tlačítko - pohyb nahoru/dolů
+            selected = 1 - selected; // Přepínání mezi START a QUIT
+            usleep(200000); // Zpoždění proti zákmitům
+        }
+        
+        if (r & 0x2000000) { // Červené tlačítko - výběr
+            if (selected == 0) { // START
+                return 1; // Pokračovat do hlavní aplikace
+            } else { // QUIT
+                return 0; // Ukončit aplikaci
+            }
+        }
+        
+        if (r & 0x1000000) { // Modré tlačítko - vždy ukončit
+            return 0; // Ukončit aplikaci
+        }
+        
+        // Zpoždění
+        usleep(100000);
+    }
+    
+    return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -202,6 +356,25 @@ int main(int argc, char *argv[]) {
     // Initialize the LCD
     parlcd_hx8357_init(parlcd_mem_base);
 
+    // Show menu and get result
+    int continue_app = show_menu(parlcd_mem_base, mem_base);
+    
+    // If user selected QUIT or pressed blue button, exit
+    if (!continue_app) {
+        printf("User selected to quit from menu\n");
+        
+        // Clear screen before exit
+        clear_frame_buffer(0x0000);
+        update_display(parlcd_mem_base);
+        
+        // Cleanup
+        free(fb);
+        free(source_buffer);
+        serialize_unlock();
+        
+        return 0;
+    }
+
     // Setup timing
     struct timespec loop_delay = {
         .tv_sec = 0,
@@ -222,7 +395,7 @@ int main(int argc, char *argv[]) {
         }
 
         // Extract knob positions
-        int blue_val = 255 - (r & 0xff);          // Inverted X position (blue knob)
+        int blue_val = r & 0xff;                  // X position (blue knob)
         int green_val = (r >> 8) & 0xff;          // Y position (green knob)
         int red_val = (r >> 16) & 0xff;           // Magnification (red knob)
 
@@ -233,7 +406,7 @@ int main(int argc, char *argv[]) {
         // Calculate positions and magnification
         int center_x = (blue_val * LCD_WIDTH) / 255;
         int center_y = (green_val * LCD_HEIGHT) / 255;
-        int mag_factor = 2 + (red_val * (MAGNIFICATION - 2)) / 255;
+        int mag_factor = 2 + (red_val * (MAGNIFICATION - 2)) / 255;  // Maps 0-255 to 2-MAGNIFICATION
 
         // Debug print calculated values
         printf("Calculated positions - X: %d, Y: %d, Mag: %d\n", center_x, center_y, mag_factor);
@@ -245,10 +418,7 @@ int main(int argc, char *argv[]) {
         draw_magnified_area(center_x, center_y, mag_factor);
 
         // Update display
-        parlcd_write_cmd(parlcd_mem_base, 0x2c);
-        for (int ptr = 0; ptr < LCD_WIDTH * LCD_HEIGHT; ptr++) {
-            parlcd_write_data(parlcd_mem_base, fb[ptr]);
-        }
+        update_display(parlcd_mem_base);
 
         // Wait before next update
         clock_nanosleep(CLOCK_MONOTONIC, 0, &loop_delay, NULL);
@@ -258,10 +428,7 @@ int main(int argc, char *argv[]) {
 
     // Clear screen before exit
     clear_frame_buffer(0x0000);
-    parlcd_write_cmd(parlcd_mem_base, 0x2c);
-    for (int ptr = 0; ptr < LCD_WIDTH * LCD_HEIGHT; ptr++) {
-        parlcd_write_data(parlcd_mem_base, 0);
-    }
+    update_display(parlcd_mem_base);
 
     // Cleanup
     free(fb);

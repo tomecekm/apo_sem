@@ -1,5 +1,6 @@
 /*******************************************************************
   X-Mag implementation for MicroZed based MZ_APO board
+  100% working code - zooming and mooving LED line 7.5.2025
  *******************************************************************/
 
 #define _POSIX_C_SOURCE 200112L
@@ -69,7 +70,6 @@ void load_image_to_buffer() {
         for (int x = 0; x < kote_png_width; x++) {
             int dest_x = start_x + x;
             int dest_y = start_y + y;
-			printf("dest_x: %d, dest_y: %d\n", dest_x, dest_y);
             if (dest_x >= 0 && dest_x < LCD_WIDTH && dest_y >= 0 && dest_y < LCD_HEIGHT) {
                 source_buffer[dest_x + LCD_WIDTH * dest_y] = kote_png[x + y * kote_png_width];
             }
@@ -80,7 +80,7 @@ void load_image_to_buffer() {
 // Function to draw magnified area
 void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     // Zajistit minimální faktor zvětšení
-    if (mag_factor < 1) mag_factor = 1;
+    if (mag_factor < 2) mag_factor = 2;
 
     // Calculate the size of the area to magnify
     int mag_width = LCD_WIDTH / mag_factor;
@@ -95,8 +95,8 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     start_y = (start_y < 0) ? 0 : (start_y >= LCD_HEIGHT - mag_height) ? LCD_HEIGHT - mag_height : start_y;
 
     // Debug výpis pro kontrolu
-    printf("Magnifying area: start_x=%d, start_y=%d, width=%d, height=%d\n",
-           start_x, start_y, mag_width, mag_height);
+    printf("Magnifying area: start_x=%d, start_y=%d, width=%d, height=%d, mag=%d\n",
+           start_x, start_y, mag_width, mag_height, mag_factor);
 
     // Draw magnified pixels
     for (int y = 0; y < mag_height; y++) {
@@ -122,6 +122,38 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
             }
         }
     }
+}
+
+// Function to animate LED line
+void animate_led_line(unsigned char *mem_base) {
+    uint32_t val_line = 1;
+
+    printf("Starting LED line animation\n");
+
+    // Animate LED line from left to right
+	printf("LED moving right\n");
+    for (int i = 0; i < 30; i++) {
+        *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
+        val_line <<= 1;
+        usleep(100000); // 100ms delay
+
+        // Reset when we reach the end
+        if (val_line == 0) {
+            val_line = 0x80000000; // Nejvyšší bit pro zpáteční cestu
+        }
+    }
+
+    // Animate LED line from right to left
+	printf("LED moving left\n");
+    for (int i = 0; i < 30; i++) {
+        *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
+        val_line >>= 1;
+        usleep(100000); // 100ms delay
+    }
+
+    // Clear LED line at the end
+    *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = 0;
+    printf("LED animation complete\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -164,6 +196,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // Run LED animation before initializing LCD
+    animate_led_line(mem_base);
+
     // Initialize the LCD
     parlcd_hx8357_init(parlcd_mem_base);
 
@@ -196,9 +231,9 @@ int main(int argc, char *argv[]) {
         printf("Knob values - Blue: %d, Green: %d, Red: %d\n", blue_val, green_val, red_val);
 
         // Calculate positions and magnification
-        int center_x = (blue_val * LCD_WIDTH) / 256;
-        int center_y = (green_val * LCD_HEIGHT) / 256;
-        int mag_factor = 1 + (red_val * MAGNIFICATION) / 256;  // Maps 0-255 to 1-8
+        int center_x = (blue_val * LCD_WIDTH) / 255;
+        int center_y = (green_val * LCD_HEIGHT) / 255;
+        int mag_factor = 2 + (red_val * (MAGNIFICATION - 2)) / 255;
 
         // Debug print calculated values
         printf("Calculated positions - X: %d, Y: %d, Mag: %d\n", center_x, center_y, mag_factor);
