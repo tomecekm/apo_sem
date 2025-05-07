@@ -124,18 +124,32 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     }
 }
 
+// Function to animate LED line
 void animate_led_line(unsigned char *mem_base) {
-    uint32_t val_line = 5;
+    uint32_t val_line = 1;
+    int direction = 1; // 1 = left to right, -1 = right to left
     
-    // Set initial LED line value
-    *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
+    printf("Starting LED line animation\n");
     
-    // Start LED animation in background by shifting bits
-    for (int i = 0; i < 30; i++) {
-        val_line <<= 1;
-        *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
-        usleep(100000); // 100ms delay between shifts
+    // Animate LED line back and forth
+    for (int i = 0; i < 3; i++) { // Do 3 complete cycles
+        // Move from left to right
+        val_line = 1;
+        while (val_line < 0x80000000) {
+            *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
+            val_line <<= 1;
+            usleep(50000); // 50ms delay between shifts
+        }
+        
+        // Move from right to left
+        while (val_line > 1) {
+            val_line >>= 1;
+            *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
+            usleep(50000); // 50ms delay between shifts
+        }
     }
+    
+    printf("LED animation complete\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -203,6 +217,7 @@ int main(int argc, char *argv[]) {
         int x_val = knobs & 0xff;
         int y_val = (knobs >> 8) & 0xff;
         int zoom_val = (knobs >> 16) & 0xff;
+		printf("Knobs: X=%d, Y=%d, Zoom=%d\n", x_val, y_val, zoom_val);
 
         // Calculate magnification (1-15)
         int mag_factor = 1 + (zoom_val * (MAGNIFICATION - 1)) / 255;
