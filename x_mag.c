@@ -69,7 +69,7 @@ void load_image_to_buffer() {
         for (int x = 0; x < kote_png_width; x++) {
             int dest_x = start_x + x;
             int dest_y = start_y + y;
-			príntf("dest_x: %d, dest_y: %d\n", dest_x, dest_y);
+			printf("dest_x: %d, dest_y: %d\n", dest_x, dest_y);
             if (dest_x >= 0 && dest_x < LCD_WIDTH && dest_y >= 0 && dest_y < LCD_HEIGHT) {
                 source_buffer[dest_x + LCD_WIDTH * dest_y] = kote_png[x + y * kote_png_width];
             }
