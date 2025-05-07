@@ -256,29 +256,25 @@ int show_menu(unsigned char *parlcd_mem_base, unsigned char *mem_base) {
     unsigned short quit_color = hsv2rgb_lcd(0, 255, 255);    // Červená
     unsigned short selected_color = 0xFFFF;                  // Bílá
     
-    // Pozice textu
-    int title_x = (LCD_WIDTH - strlen("X-MAG") * title_font->maxwidth * 4) / 2;
+    // Pozice textu - X-MAG více ve středu
+    int title_x = (LCD_WIDTH - strlen("X-MAG") * title_font->maxwidth * 5) / 2;
     int title_y = 80;
-    int start_x = (LCD_WIDTH - strlen("START") * menu_font->maxwidth * 2) / 2;
+    int start_x = (LCD_WIDTH - strlen("START") * menu_font->maxwidth * 3) / 2;
     int start_y = 180;
-    int quit_x = (LCD_WIDTH - strlen("QUIT") * menu_font->maxwidth * 2) / 2;
-    int quit_y = 220;
-    
-    // Proměnné pro výběr
-    int selected = 0; // 0 = START, 1 = QUIT
-    int exit_menu = 0;
+    int quit_x = (LCD_WIDTH - strlen("QUIT") * menu_font->maxwidth * 3) / 2;
+    int quit_y = 230;
     
     // Hlavní smyčka menu
-    while (!exit_menu) {
+    while (1) {
         // Vyčistit frame buffer
         clear_frame_buffer(0x0000);
         
-        // Vykreslit název
-        draw_text(title_x, title_y, "X-MAG", title_color, title_font, 4);
+        // Vykreslit název - větší velikost (scale 5)
+        draw_text(title_x, title_y, "X-MAG", title_color, title_font, 5);
         
-        // Vykreslit položky menu
-        draw_text(start_x, start_y, "START", (selected == 0) ? selected_color : start_color, menu_font, 2);
-        draw_text(quit_x, quit_y, "QUIT", (selected == 1) ? selected_color : quit_color, menu_font, 2);
+        // Vykreslit položky menu - větší velikost (scale 3)
+        draw_text(start_x, start_y, "START", start_color, menu_font, 3);
+        draw_text(quit_x, quit_y, "QUIT", quit_color, menu_font, 3);
         
         // Aktualizovat displej
         update_display(parlcd_mem_base);
@@ -287,20 +283,15 @@ int show_menu(unsigned char *parlcd_mem_base, unsigned char *mem_base) {
         uint32_t r = *(volatile uint32_t*)(mem_base + SPILED_REG_KNOBS_8BIT_o);
         
         // Kontrola tlačítek
-        if (r & 0x4000000) { // Zelené tlačítko - pohyb nahoru/dolů
-            selected = 1 - selected; // Přepínání mezi START a QUIT
-            usleep(200000); // Zpoždění proti zákmitům
+        if (r & 0x4000000) { // Zelené tlačítko - START
+            return 1; // Pokračovat do hlavní aplikace
         }
         
-        if (r & 0x2000000) { // Červené tlačítko - výběr
-            if (selected == 0) { // START
-                return 1; // Pokračovat do hlavní aplikace
-            } else { // QUIT
-                return 0; // Ukončit aplikaci
-            }
+        if (r & 0x2000000) { // Červené tlačítko - QUIT
+            return 0; // Ukončit aplikaci
         }
         
-        if (r & 0x1000000) { // Modré tlačítko - vždy ukončit
+        if (r & 0x1000000) { // Modré tlačítko - také QUIT
             return 0; // Ukončit aplikaci
         }
         
