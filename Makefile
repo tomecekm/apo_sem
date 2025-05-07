@@ -10,7 +10,7 @@ LDLIBS += -lrt -lpthread
 #LDLIBS += -lm
 
 SOURCES = x_mag.c mzapo_phys.c mzapo_parlcd.c serialize_lock.c
-#SOURCES += font_prop14x16.c font_rom8x16.c
+SOURCES += font_prop14x16.c font_rom8x16.c
 TARGET_EXE = x_mag
 TARGET_IP ?= 192.168.223.168
 ifeq ($(TARGET_IP),)
