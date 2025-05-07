@@ -270,7 +270,7 @@ int show_menu(unsigned char *parlcd_mem_base, unsigned char *mem_base) {
         clear_frame_buffer(0x0000);
         
         // Vykreslit název - větší velikost (scale 5)
-        draw_text(title_x + 20, title_y, "X-MAG", title_color, title_font, 5);
+        draw_text(title_x + 100, title_y, "X-MAG", title_color, title_font, 5);
         
         // Vykreslit položky menu - větší velikost (scale 3)
         draw_text(start_x, start_y, "START", start_color, menu_font, 3);
@@ -283,12 +283,12 @@ int show_menu(unsigned char *parlcd_mem_base, unsigned char *mem_base) {
         uint32_t r = *(volatile uint32_t*)(mem_base + SPILED_REG_KNOBS_8BIT_o);
         
         // Kontrola tlačítek
-        if (r & 0x4000000) { // Zelené tlačítko - START
-            return 0; // Pokračovat do hlavní aplikace
+        if (r & 0x4000000) { // Červené tlačítko - QUIT
+            return 0;
         }
         
-        if (r & 0x2000000) { // Červené tlačítko - QUIT
-            return 1; // Ukončit aplikaci
+        if (r & 0x2000000) { // Zelenoé tlačítko - START
+            return 1;
         }
         
         // Zpoždění
