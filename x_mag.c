@@ -79,6 +79,9 @@ void load_image_to_buffer() {
 
 // Function to draw magnified area
 void draw_magnified_area(int center_x, int center_y, int mag_factor) {
+    // Zajistit minimální faktor zvětšení
+    if (mag_factor < 1) mag_factor = 1;
+    
     // Calculate the size of the area to magnify
     int mag_width = LCD_WIDTH / mag_factor;
     int mag_height = LCD_HEIGHT / mag_factor;
@@ -91,11 +94,20 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     start_x = (start_x < 0) ? 0 : (start_x >= LCD_WIDTH - mag_width) ? LCD_WIDTH - mag_width : start_x;
     start_y = (start_y < 0) ? 0 : (start_y >= LCD_HEIGHT - mag_height) ? LCD_HEIGHT - mag_height : start_y;
 
+    // Debug výpis pro kontrolu
+    printf("Magnifying area: start_x=%d, start_y=%d, width=%d, height=%d\n", 
+           start_x, start_y, mag_width, mag_height);
+    
     // Draw magnified pixels
     for (int y = 0; y < mag_height; y++) {
         for (int x = 0; x < mag_width; x++) {
             int src_x = start_x + x;
             int src_y = start_y + y;
+            
+            // Kontrola hranic
+            if (src_x < 0 || src_x >= LCD_WIDTH || src_y < 0 || src_y >= LCD_HEIGHT) {
+                continue;
+            }
 
             // Get color from source buffer
             uint16_t color = source_buffer[src_x + LCD_WIDTH * src_y];
