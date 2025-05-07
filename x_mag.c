@@ -134,7 +134,7 @@ void animate_led_line(unsigned char *mem_base) {
     
     // Animate LED line from left to right
 	printf("LED moving right\n");
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i <= 30; i++) {
         *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
         val_line <<= 1;
         usleep(100000); // 100ms delay
@@ -147,7 +147,7 @@ void animate_led_line(unsigned char *mem_base) {
     
     // Animate LED line from right to left
 	printf("LED moving left\n");
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i <= 30; i++) {
         *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
         val_line >>= 1;
         usleep(100000); // 100ms delay
@@ -270,7 +270,7 @@ int show_menu(unsigned char *parlcd_mem_base, unsigned char *mem_base) {
         clear_frame_buffer(0x0000);
         
         // Vykreslit název - větší velikost (scale 5)
-        draw_text(title_x + 100, title_y, "X-MAG", title_color, title_font, 5);
+        draw_text(title_x + 80, title_y, "X-MAG", title_color, title_font, 5);
         
         // Vykreslit položky menu - větší velikost (scale 3)
         draw_text(start_x, start_y, "START", start_color, menu_font, 3);
