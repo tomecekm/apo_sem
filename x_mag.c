@@ -130,10 +130,10 @@ void animate_led_line(unsigned char *mem_base) {
     printf("Starting LED line animation\n");
     
     // Animate LED line from left to right
-    for (int i = 0; i < 15; i++) {
+	printf("LED moving right\n");
+    for (int i = 0; i < 30; i++) {
         *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
         val_line <<= 1;
-        printf("LED val 0x%x\n", val_line);
         usleep(100000); // 100ms delay
         
         // Reset when we reach the end
@@ -143,7 +143,8 @@ void animate_led_line(unsigned char *mem_base) {
     }
     
     // Animate LED line from right to left
-    for (int i = 0; i < 15; i++) {
+	printf("LED moving left\n");
+    for (int i = 0; i < 30; i++) {
         *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
         val_line >>= 1;
         printf("LED val 0x%x\n", val_line);
