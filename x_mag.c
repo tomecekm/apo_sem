@@ -124,6 +124,20 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     }
 }
 
+void animate_led_line(unsigned char *mem_base) {
+    uint32_t val_line = 5;
+    
+    // Set initial LED line value
+    *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
+    
+    // Start LED animation in background by shifting bits
+    for (int i = 0; i < 30; i++) {
+        val_line <<= 1;
+        *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
+        usleep(100000); // 100ms delay between shifts
+    }
+}
+
 int main(int argc, char *argv[]) {
     printf("Starting X-Mag application\n");
 
@@ -156,6 +170,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // Run LED line animation at startup
+    animate_led_line(mem_base);
+
     unsigned char *parlcd_mem_base = map_phys_address(PARLCD_REG_BASE_PHYS, PARLCD_REG_SIZE, 0);
     if (parlcd_mem_base == NULL) {
         printf("ERROR: Failed to map LCD peripheral\n");
@@ -182,7 +199,6 @@ int main(int argc, char *argv[]) {
         if (knobs & 0x1000000) {
             break;  // Exit on blue button press
         }
-
         // Get knob values (0-255)
         int x_val = knobs & 0xff;
         int y_val = (knobs >> 8) & 0xff;
