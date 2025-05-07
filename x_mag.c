@@ -80,7 +80,7 @@ void load_image_to_buffer() {
 // Function to draw magnified area
 void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     // Zajistit minimální faktor zvětšení
-    if (mag_factor < 1) mag_factor = 1;
+    if (mag_factor < 2) mag_factor = 2;
     
     // Calculate the size of the area to magnify
     int mag_width = LCD_WIDTH / mag_factor;
@@ -95,8 +95,8 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     start_y = (start_y < 0) ? 0 : (start_y >= LCD_HEIGHT - mag_height) ? LCD_HEIGHT - mag_height : start_y;
 
     // Debug výpis pro kontrolu
-    printf("Magnifying area: start_x=%d, start_y=%d, width=%d, height=%d\n", 
-           start_x, start_y, mag_width, mag_height);
+    printf("Magnifying area: start_x=%d, start_y=%d, width=%d, height=%d, mag=%d\n", 
+           start_x, start_y, mag_width, mag_height, mag_factor);
     
     // Draw magnified pixels
     for (int y = 0; y < mag_height; y++) {
@@ -196,9 +196,9 @@ int main(int argc, char *argv[]) {
         printf("Knob values - Blue: %d, Green: %d, Red: %d\n", blue_val, green_val, red_val);
 
         // Calculate positions and magnification
-        int center_x = (blue_val * LCD_WIDTH) / 256;
-        int center_y = (green_val * LCD_HEIGHT) / 256;
-        int mag_factor = 1 + (red_val * MAGNIFICATION) / 256;  // Maps 0-255 to 1-8
+        int center_x = (blue_val * LCD_WIDTH) / 255;
+        int center_y = (green_val * LCD_HEIGHT) / 255;
+        int mag_factor = 2 + (red_val * (MAGNIFICATION - 2)) / 255;  // Maps 0-255 to 2-MAGNIFICATION
 
         // Debug print calculated values
         printf("Calculated positions - X: %d, Y: %d, Mag: %d\n", center_x, center_y, mag_factor);
