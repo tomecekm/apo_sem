@@ -1,5 +1,5 @@
 /*******************************************************************
-  X-Mag implementation  MZ_APO board
+  X-Mag implementation for MicroZed based MZ_APO board
  *******************************************************************/
 
 #define _POSIX_C_SOURCE 200112L
@@ -78,78 +78,37 @@ void load_image_to_buffer() {
 
 // Function to draw magnified area
 void draw_magnified_area(int center_x, int center_y, int mag_factor) {
-    // Calculate viewing window size
-    int window_width = LCD_WIDTH / mag_factor;
-    int window_height = LCD_HEIGHT / mag_factor;
-    
-    // Calculate start position
-    int start_x = center_x - (window_width / 2);
-    int start_y = center_y - (window_height / 2);
-    
-    // Adjust start positions to prevent going beyond screen edges
-    if (start_x < 0) {
-        start_x = 0;
-        center_x = window_width / 2;
-    }
-    if (start_y < 0) {
-        start_y = 0;
-        center_y = window_height / 2;
-    }
-    if (start_x + window_width > LCD_WIDTH) {
-        start_x = LCD_WIDTH - window_width;
-        center_x = LCD_WIDTH - window_width / 2;
-    }
-    if (start_y + window_height > LCD_HEIGHT) {
-        start_y = LCD_HEIGHT - window_height;
-        center_y = LCD_HEIGHT - window_height / 2;
-    }
+    // Calculate the size of the area to magnify
+    int mag_width = LCD_WIDTH / mag_factor;
+    int mag_height = LCD_HEIGHT / mag_factor;
 
-    // Draw magnified content
-    for (int y = 0; y < window_height; y++) {
-        for (int x = 0; x < window_width; x++) {
-            // Get source pixel
-            uint16_t color = source_buffer[(start_y + y) * LCD_WIDTH + (start_x + x)];
-            
-            // Calculate destination coordinates
-            int dest_x_start = x * mag_factor;
-            int dest_y_start = y * mag_factor;
-            
+    // Calculate the starting point for sampling the source image
+    int start_x = center_x - (mag_width / 2);
+    int start_y = center_y - (mag_height / 2);
+
+    // Ensure start positions are within bounds
+    start_x = (start_x < 0) ? 0 : (start_x >= LCD_WIDTH - mag_width) ? LCD_WIDTH - mag_width : start_x;
+    start_y = (start_y < 0) ? 0 : (start_y >= LCD_HEIGHT - mag_height) ? LCD_HEIGHT - mag_height : start_y;
+
+    // Draw magnified pixels
+    for (int y = 0; y < mag_height; y++) {
+        for (int x = 0; x < mag_width; x++) {
+            int src_x = start_x + x;
+            int src_y = start_y + y;
+
+            // Get color from source buffer
+            uint16_t color = source_buffer[src_x + LCD_WIDTH * src_y];
+
             // Draw magnified pixel
-            for (int my = 0; my < mag_factor && dest_y_start + my < LCD_HEIGHT; my++) {
-                for (int mx = 0; mx < mag_factor && dest_x_start + mx < LCD_WIDTH; mx++) {
-                    draw_pixel(dest_x_start + mx, dest_y_start + my, color);
+            for (int dy = 0; dy < mag_factor; dy++) {
+                for (int dx = 0; dx < mag_factor; dx++) {
+                    int dest_x = x * mag_factor + dx;
+                    int dest_y = y * mag_factor + dy;
+                    draw_pixel(dest_x, dest_y, color);
                 }
             }
         }
     }
-}
-
-// Function to animate LED line
-void animate_led_line(unsigned char *mem_base) {
-    uint32_t val_line = 1;
-    int direction = 1; // 1 = left to right, -1 = right to left
-    
-    printf("Starting LED line animation\n");
-    
-    // Animate LED line back and forth
-    for (int i = 0; i < 3; i++) { // Do 3 complete cycles
-        // Move from left to right
-        val_line = 1;
-        while (val_line < 0x80000000) {
-            *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
-            val_line <<= 1;
-            usleep(50000); // 50ms delay between shifts
-        }
-        
-        // Move from right to left
-        while (val_line > 1) {
-            val_line >>= 1;
-            *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
-            usleep(50000); // 50ms delay between shifts
-        }
-    }
-    
-    printf("LED animation complete\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -184,9 +143,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Run LED line animation at startup
-    animate_led_line(mem_base);
-
     unsigned char *parlcd_mem_base = map_phys_address(PARLCD_REG_BASE_PHYS, PARLCD_REG_SIZE, 0);
     if (parlcd_mem_base == NULL) {
         printf("ERROR: Failed to map LCD peripheral\n");
@@ -208,27 +164,31 @@ int main(int argc, char *argv[]) {
 
     // Main loop
     while (1) {
-        uint32_t knobs = *(volatile uint32_t*)(mem_base + SPILED_REG_KNOBS_8BIT_o);
-        
-        if (knobs & 0x1000000) {
-            break;  // Exit on blue button press
-        }
-        // Get knob values (0-255)
-        int x_val = knobs & 0xff;
-        int y_val = (knobs >> 8) & 0xff;
-        int zoom_val = (knobs >> 16) & 0xff;
-		printf("Knobs: X=%d, Y=%d, Zoom=%d\n", x_val, y_val, zoom_val);
+        // Read knob values directly from register
+        uint32_t r = *(volatile uint32_t*)(mem_base + SPILED_REG_KNOBS_8BIT_o);
 
-        // Calculate magnification (1-15)
-        int mag_factor = 1 + (zoom_val * (MAGNIFICATION - 1)) / 255;
-        
-        // Calculate center position with bounds checking
-        int window_width = LCD_WIDTH / mag_factor;
-        int window_height = LCD_HEIGHT / mag_factor;
-        
-        // Map knob values to screen coordinates with boundary limits
-        int center_x = (x_val * (LCD_WIDTH - window_width)) / 255 + window_width / 2;
-        int center_y = (y_val * (LCD_HEIGHT - window_height)) / 255 + window_height / 2;
+        // Check for blue button press (exit condition)
+        if (r & 0x1000000) {
+            printf("Blue button pressed - exiting\n");
+            break;
+        }
+
+        // Extract knob positions
+        int blue_val = 255 - (r & 0xff);          // Inverted X position (blue knob)
+        int green_val = (r >> 8) & 0xff;          // Y position (green knob)
+        int red_val = (r >> 16) & 0xff;           // Magnification (red knob)
+
+        // Debug print
+        printf("Raw register value: 0x%08x\n", r);
+        printf("Knob values - Blue: %d, Green: %d, Red: %d\n", blue_val, green_val, red_val);
+
+        // Calculate positions and magnification
+        int center_x = (blue_val * LCD_WIDTH) / 256;
+        int center_y = (green_val * LCD_HEIGHT) / 256;
+        int mag_factor = 1 + (red_val * MAGNIFICATION) / 256;  // Maps 0-255 to 1-8
+
+        // Debug print calculated values
+        printf("Calculated positions - X: %d, Y: %d, Mag: %d\n", center_x, center_y, mag_factor);
 
         // Clear frame buffer
         clear_frame_buffer(0x0000);
@@ -238,10 +198,11 @@ int main(int argc, char *argv[]) {
 
         // Update display
         parlcd_write_cmd(parlcd_mem_base, 0x2c);
-        for (int i = 0; i < LCD_WIDTH * LCD_HEIGHT; i++) {
-            parlcd_write_data(parlcd_mem_base, fb[i]);
+        for (int ptr = 0; ptr < LCD_WIDTH * LCD_HEIGHT; ptr++) {
+            parlcd_write_data(parlcd_mem_base, fb[ptr]);
         }
 
+        // Wait before next update
         clock_nanosleep(CLOCK_MONOTONIC, 0, &loop_delay, NULL);
     }
 
