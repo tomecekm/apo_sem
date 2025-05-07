@@ -130,7 +130,7 @@ void animate_led_line(unsigned char *mem_base) {
     printf("Starting LED line animation\n");
     
     // Animate LED line from left to right
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 15; i++) {
         *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
         val_line <<= 1;
         printf("LED val 0x%x\n", val_line);
@@ -138,8 +138,16 @@ void animate_led_line(unsigned char *mem_base) {
         
         // Reset when we reach the end
         if (val_line == 0) {
-            val_line = 1;
+            val_line = 0x80000000; // Nejvyšší bit pro zpáteční cestu
         }
+    }
+    
+    // Animate LED line from right to left
+    for (int i = 0; i < 15; i++) {
+        *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
+        val_line >>= 1;
+        printf("LED val 0x%x\n", val_line);
+        usleep(100000); // 100ms delay
     }
     
     // Clear LED line at the end
