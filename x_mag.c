@@ -125,37 +125,25 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
 
 // Function to animate LED line
 void animate_led_line(unsigned char *mem_base) {
-    uint32_t val_line = 5;
     uint32_t val_line = 1;
-    int direction = 1; // 1 = left to right, -1 = right to left
-
-    // Set initial LED line value
-    *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
+    
     printf("Starting LED line animation\n");
-
-    // Start LED animation in background by shifting bits
+    
+    // Animate LED line from left to right
     for (int i = 0; i < 30; i++) {
-        val_line <<= 1;
         *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
-        usleep(100000); // 100ms delay between shifts
-    // Animate LED line back and forth
-    for (int i = 0; i < 3; i++) { // Do 3 complete cycles
-        // Move from left to right
-        val_line = 1;
-        while (val_line < 0x80000000) {
-            *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
-            val_line <<= 1;
-            usleep(50000); // 50ms delay between shifts
-        }
-
-        // Move from right to left
-        while (val_line > 1) {
-            val_line >>= 1;
-            *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
-            usleep(50000); // 50ms delay between shifts
+        val_line <<= 1;
+        printf("LED val 0x%x\n", val_line);
+        usleep(100000); // 100ms delay
+        
+        // Reset when we reach the end
+        if (val_line == 0) {
+            val_line = 1;
         }
     }
-
+    
+    // Clear LED line at the end
+    *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = 0;
     printf("LED animation complete\n");
 }
 
@@ -199,6 +187,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // Run LED animation before initializing LCD
+    animate_led_line(mem_base);
+
     // Initialize the LCD
     parlcd_hx8357_init(parlcd_mem_base);
 
@@ -207,7 +198,6 @@ int main(int argc, char *argv[]) {
         .tv_sec = 0,
         .tv_nsec = 150 * 1000 * 1000  // 150ms
     };
-	animate_led_line(mem_base);
 
     printf("Starting main loop\n");
 
