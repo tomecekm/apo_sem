@@ -150,11 +150,7 @@ int show_menu(unsigned char *parlcd_mem_base, unsigned char *mem_base) {
         if (r & 0x4000000) { // Zelené tlačítko - QUIT
             return 0; // Ukončit aplikaci
         }
-        
-        // Modré tlačítko je v menu deaktivováno
-        
-        // Zpoždění
-        usleep(100000);
+
     }
     
     return 0;
