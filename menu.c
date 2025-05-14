@@ -12,6 +12,9 @@
 #include "mzapo_regs.h"
 #include "font_types.h"
 
+#define LCD_WIDTH 480
+#define LCD_HEIGHT 320
+
 extern void draw_pixel(int x, int y, uint16_t color);
 extern void clear_frame_buffer(uint16_t color);
 extern void update_display(unsigned char *parlcd_mem_base);
