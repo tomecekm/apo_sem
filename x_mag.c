@@ -256,6 +256,7 @@ int main(int argc, char *argv[]) {
     // Clear screen before exit
     clear_frame_buffer(0x0000);
     update_display(parlcd_mem_base);
+	*(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = 0;
 
     // Cleanup
     free(fb);

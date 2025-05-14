@@ -59,4 +59,5 @@ void update_led_magnification(unsigned char *mem_base, int mag_factor) {
     
     // Update LED line register
     *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
+
 }
