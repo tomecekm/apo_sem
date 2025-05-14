@@ -100,26 +100,20 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     int start_x = center_x - (mag_width / 2);
     int start_y = center_y - (mag_height / 2);
 
-
-    // Možnost 2: Objevit se na druhé straně (odkomentujte pro tuto možnost)
-    // Wrap around edges (toroidal mapping)
-    start_x = (start_x < 0) ? (LCD_WIDTH + start_x % LCD_WIDTH) % LCD_WIDTH : start_x % LCD_WIDTH;
-    start_y = (start_y < 0) ? (LCD_HEIGHT + start_y % LCD_HEIGHT) % LCD_HEIGHT : start_y % LCD_HEIGHT;
+    // Wrap around edges (toroidal mapping) - upraveno pro plynulejší přechod
+    // Nepoužíváme modulo na start_x a start_y, ale až na jednotlivé pixely
 
     // Debug výpis pro kontrolu
-    printf("Magnifying area: start_x=%d, start_y=%d, width=%d, height=%d, mag=%d\n", 
-           start_x, start_y, mag_width, mag_height, mag_factor);
+    printf("Magnifying area: center_x=%d, center_y=%d, width=%d, height=%d, mag=%d\n", 
+           center_x, center_y, mag_width, mag_height, mag_factor);
     
     // Draw magnified pixels
     for (int y = 0; y < mag_height; y++) {
         for (int x = 0; x < mag_width; x++) {
-            int src_x = start_x + x;
-            int src_y = start_y + y;
+            // Výpočet zdrojových souřadnic s okamžitým přechodem na druhou stranu
+            int src_x = (start_x + x + LCD_WIDTH) % LCD_WIDTH;
+            int src_y = (start_y + y + LCD_HEIGHT) % LCD_HEIGHT;
             
-            // Pro možnost 2 (objevení se na druhé straně) - zajistí správné zabalení souřadnic
-            src_x = (src_x + LCD_WIDTH) % LCD_WIDTH;
-            src_y = (src_y + LCD_HEIGHT) % LCD_HEIGHT;
-
             // Get color from source buffer
             uint16_t color = source_buffer[src_x + LCD_WIDTH * src_y];
 
