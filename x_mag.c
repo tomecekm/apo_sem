@@ -19,6 +19,8 @@
 #include "serialize_lock.h"
 #include "kote.c"
 #include "font_types.h"
+#include "menu.c"
+#include "led.c"
 
 #define LCD_WIDTH 480
 #define LCD_HEIGHT 320
