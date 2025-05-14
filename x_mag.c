@@ -218,7 +218,7 @@ int main(int argc, char *argv[]) {
         }
 
         // Extract knob positions
-        int blue_val = r & 0xff;                  // X position (blue knob)
+        int blue_val = 255 - (r & 0xff);                  // X position (blue knob)
         int green_val = (r >> 8) & 0xff;          // Y position (green knob)
         int red_val = (r >> 16) & 0xff;           // Magnification (red knob)
 
