@@ -49,7 +49,7 @@ void update_led_magnification(unsigned char *mem_base, int mag_factor) {
     
     // Calculate how many LEDs to light up (0-30)
     // Map magnification range 2-14 to LED range 0-30
-    int leds_to_light = (mag_factor - 2) * 30 / 12;
+    int leds_to_light = (mag_factor - 2) * 31 / 12;
     
     // Create bit pattern with appropriate number of 1s from left
     uint32_t val_line = 0;
