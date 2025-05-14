@@ -29,6 +29,7 @@
 // Deklarace externích funkcí z menu.c a led.c
 extern int show_menu(unsigned char *parlcd_mem_base, unsigned char *mem_base);
 extern void animate_led_line(unsigned char *mem_base);
+extern void update_led_magnification(unsigned char *mem_base, int mag_factor);
 
 // Global frame buffer
 unsigned short *fb;
@@ -230,6 +231,9 @@ int main(int argc, char *argv[]) {
         int center_x = (blue_val * LCD_WIDTH) / 255;
         int center_y = (green_val * LCD_HEIGHT) / 255;
         int mag_factor = 2 + (red_val * (MAGNIFICATION - 2)) / 255;  // Maps 0-255 to 2-MAGNIFICATION
+
+        // Update LED line based on magnification level
+        update_led_magnification(mem_base, mag_factor);
 
         // Debug print calculated values
         printf("Calculated positions - X: %d, Y: %d, Mag: %d\n", center_x, center_y, mag_factor);

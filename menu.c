@@ -117,7 +117,7 @@ int show_menu(unsigned char *parlcd_mem_base, unsigned char *mem_base) {
     unsigned short quit_color = hsv2rgb_lcd(0, 255, 255);    // Červená
     
     // Pozice textu - X-MAG více ve středu
-    int title_x = 30 + (LCD_WIDTH - strlen("X-MAG") * title_font->maxwidth * 5) / 2;
+    int title_x = 80 + (LCD_WIDTH - strlen("X-MAG") * title_font->maxwidth * 5) / 2;
     int title_y = 80;
     int start_x = (LCD_WIDTH - strlen("START") * menu_font->maxwidth * 3) / 2;
     int start_y = 180;
