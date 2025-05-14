@@ -135,7 +135,6 @@ void animate_led_line(unsigned char *mem_base) {
     for (int i = 0; i < 30; i++) {
         *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
         val_line <<= 1;
-        usleep(100000); // 100ms delay
 
         // Reset when we reach the end
         if (val_line == 0) {
@@ -148,7 +147,6 @@ void animate_led_line(unsigned char *mem_base) {
     for (int i = 0; i < 30; i++) {
         *(volatile uint32_t*)(mem_base + SPILED_REG_LED_LINE_o) = val_line;
         val_line >>= 1;
-        usleep(100000); // 100ms delay
     }
 
     // Clear LED line at the end
