@@ -24,7 +24,7 @@ void animate_led_line(unsigned char *mem_base) {
         
         // Reset when we reach the end
         if (val_line == 0) {
-            val_line = 0x80000000; // Nejvyšší bit pro zpáteční cestu
+            val_line = 0x80000000;
         }
     }
     
@@ -47,8 +47,8 @@ void update_led_magnification(unsigned char *mem_base, int mag_factor) {
     if (mag_factor < 2) mag_factor = 2;
     if (mag_factor > 14) mag_factor = 14;
     
-    // Calculate how many LEDs to light up (0-30)
-    // Map magnification range 2-14 to LED range 0-30
+
+    // Map magnification range 2-14 to LED range 0-31
     int leds_to_light = (mag_factor - 2) * 31 / 12;
     
     // Create bit pattern with appropriate number of 1s from left
