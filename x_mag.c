@@ -100,15 +100,11 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
     int start_x = center_x - (mag_width / 2);
     int start_y = center_y - (mag_height / 2);
 
-    // Možnost 1: Zastavit na hranicích (odkomentujte pro tuto možnost)
-    // Ensure start positions are within bounds
-    start_x = (start_x < 0) ? 0 : (start_x >= LCD_WIDTH - mag_width) ? LCD_WIDTH - mag_width : start_x;
-    start_y = (start_y < 0) ? 0 : (start_y >= LCD_HEIGHT - mag_height) ? LCD_HEIGHT - mag_height : start_y;
 
     // Možnost 2: Objevit se na druhé straně (odkomentujte pro tuto možnost)
     // Wrap around edges (toroidal mapping)
-    // start_x = (start_x < 0) ? LCD_WIDTH + start_x % LCD_WIDTH : start_x % LCD_WIDTH;
-    // start_y = (start_y < 0) ? LCD_HEIGHT + start_y % LCD_HEIGHT : start_y % LCD_HEIGHT;
+    start_x = (start_x < 0) ? (LCD_WIDTH + start_x % LCD_WIDTH) % LCD_WIDTH : start_x % LCD_WIDTH;
+    start_y = (start_y < 0) ? (LCD_HEIGHT + start_y % LCD_HEIGHT) % LCD_HEIGHT : start_y % LCD_HEIGHT;
 
     // Debug výpis pro kontrolu
     printf("Magnifying area: start_x=%d, start_y=%d, width=%d, height=%d, mag=%d\n", 
@@ -121,13 +117,8 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
             int src_y = start_y + y;
             
             // Pro možnost 2 (objevení se na druhé straně) - zajistí správné zabalení souřadnic
-            // src_x = (src_x + LCD_WIDTH) % LCD_WIDTH;
-            // src_y = (src_y + LCD_HEIGHT) % LCD_HEIGHT;
-            
-            // Kontrola hranic pro možnost 1 (zastavení na hranicích)
-            if (src_x < 0 || src_x >= LCD_WIDTH || src_y < 0 || src_y >= LCD_HEIGHT) {
-                continue;
-            }
+            src_x = (src_x + LCD_WIDTH) % LCD_WIDTH;
+            src_y = (src_y + LCD_HEIGHT) % LCD_HEIGHT;
 
             // Get color from source buffer
             uint16_t color = source_buffer[src_x + LCD_WIDTH * src_y];
