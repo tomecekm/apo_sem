@@ -26,7 +26,6 @@
 #define LCD_HEIGHT 320
 #define MAGNIFICATION 15
 
-// Deklarace externích funkcí z menu.c a led.c
 extern int show_menu(unsigned char *parlcd_mem_base, unsigned char *mem_base);
 extern void animate_led_line(unsigned char *mem_base);
 extern void update_led_magnification(unsigned char *mem_base, int mag_factor);
@@ -89,7 +88,6 @@ void load_image_to_buffer() {
 
 // Function to draw magnified area
 void draw_magnified_area(int center_x, int center_y, int mag_factor) {
-    // Zajistit minimální faktor zvětšení
     if (mag_factor < 2) mag_factor = 2;
     
     // Calculate the size of the area to magnify
@@ -102,10 +100,6 @@ void draw_magnified_area(int center_x, int center_y, int mag_factor) {
 
     start_x = (start_x < 0) ? (LCD_WIDTH + start_x % LCD_WIDTH) % LCD_WIDTH : start_x % LCD_WIDTH;
     start_y = (start_y < 0) ? (LCD_HEIGHT + start_y % LCD_HEIGHT) % LCD_HEIGHT : start_y % LCD_HEIGHT;
-
-    // Debug výpis pro kontrolu
-    printf("Magnifying area: start_x=%d, start_y=%d, width=%d, height=%d, mag=%d\n",
-           start_x, start_y, mag_width, mag_height, mag_factor);
 
     // Draw magnified pixels
     for (int y = 0; y < mag_height; y++) {
@@ -216,12 +210,11 @@ int main(int argc, char *argv[]) {
         }
 
         // Extract knob positions
-        int blue_val = 255 - (r & 0xff);                  // X position (blue knob)
+        int blue_val = 255 - (r & 0xff);          // X position (blue knob)
         int green_val = (r >> 8) & 0xff;          // Y position (green knob)
         int red_val = (r >> 16) & 0xff;           // Magnification (red knob)
 
         // Debug print
-        printf("Raw register value: 0x%08x\n", r);
         printf("Knob values - Blue: %d, Green: %d, Red: %d\n", blue_val, green_val, red_val);
 
         // Calculate positions and magnification
