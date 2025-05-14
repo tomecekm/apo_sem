@@ -12,6 +12,7 @@
 #include "mzapo_regs.h"
 #include "font_types.h"
 
+
 #define LCD_WIDTH 480
 #define LCD_HEIGHT 320
 
